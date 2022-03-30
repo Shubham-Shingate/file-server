@@ -1,6 +1,28 @@
+use std::fs::ReadDir;
 use std::thread;
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
+use std::str;
+use std::fs::{self, DirEntry};
+use std::path::Path;
+use std::io;
+
+const PRINT_DIR: &str = "printdir";
+const QUIT: &str = "quit";
+
+fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
+    let path = Path::new(directory_name);
+
+    let mut entries= fs::read_dir(path).unwrap() 
+                        .map(|res| res.map(|e| e.path()))
+                        .collect::<Result<Vec<_>, io::Error>>().unwrap();
+    entries.sort();
+    for file in &entries { //Remove this later (no need to print at server side)
+        println!("{:?}", file);
+    }
+    return entries;
+}
+
 
 fn handle_client(mut stream: TcpStream) {
     let mut data = [0 as u8; 50]; // using 50 byte buffer
@@ -8,6 +30,18 @@ fn handle_client(mut stream: TcpStream) {
         Ok(size) => {
             // echo everything!
             stream.write(&data[0..size]).unwrap();
+
+            let cleint_cmd_str = str::from_utf8(&data).unwrap();
+            let client_cmd: Vec<&str> = cleint_cmd_str.split("#").collect();
+
+            if client_cmd[0] == PRINT_DIR {
+               let entries = handle_print_dir(client_cmd[1]);
+               //CONTINUE HERE SHUBHAM
+
+            } else if client_cmd[0] == QUIT {
+                
+            }
+
             true
         },
         Err(_) => {
