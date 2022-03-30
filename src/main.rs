@@ -1,6 +1,7 @@
 use std::thread;
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
+use std::fs::File;
 
 mod file_sys;
 use file_sys::Files;
@@ -43,4 +44,49 @@ fn main() {
     }
     // close the socket server
     drop(listener);
+}
+
+fn pregen_rqst(s: String, a: Option<File>) -> (){
+
+}
+
+fn gen_rqst(user: String, cmd: String, path: String, atch: Option<File>) -> Result<file_sys::FileRqst, &'static str>{
+    let cmd = &cmd[..];
+    match cmd{
+        "read" => Ok(file_sys::FileRqst::new(
+            user,
+            path,
+            file_sys::Request::Read,
+        )),
+        "write" => {
+            if let Some(x) = atch{
+                Ok(file_sys::FileRqst::new(
+                    user,
+                    path,
+                    file_sys::Request::Write(x),
+                ))
+            }
+            else{
+                Err("No file to write to")
+            }
+        }   
+        "del" => Ok(file_sys::FileRqst::new(
+            user,
+            path,
+            file_sys::Request::Del,
+        )),
+        "copy" => {
+            if let Some(x) = atch{
+                Ok(file_sys::FileRqst::new(
+                    user,
+                    path,
+                    file_sys::Request::Write(x),
+                ))
+            }
+            else{
+                Err("No file to copy")
+            }
+        }   
+        _ => Err("Invalid Command")
+    }
 }

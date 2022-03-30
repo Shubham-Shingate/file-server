@@ -17,17 +17,27 @@ enum Permission{
     Write,
 }
 
-struct FileRqst{
+pub struct FileRqst{
     user: String,
     filepath: String,
     rqst_tp: Request,
 }
 
-enum Request{
+pub enum Request{
     Read,
     Write(File),
     Del,
     Copy(String/*new path*/),
+}
+
+impl FileRqst{
+    pub fn new(user: String, filepath: String, rqst_tp: Request) -> FileRqst{
+        FileRqst{
+            user,
+            filepath,
+            rqst_tp,
+        }
+    }
 }
 
 impl FileInfo{
