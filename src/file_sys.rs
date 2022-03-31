@@ -24,10 +24,13 @@ pub struct FileRqst{
 }
 
 pub enum Request{
+    MakeDir,
+    DelDir,
     Read,
     Write(File),
     Del,
     Copy(String/*new path*/),
+    Move(String/*new path*/),
 }
 
 impl FileRqst{
@@ -77,7 +80,7 @@ impl Files{
         }
         None
     }
-    pub fn file_rqst(&mut self, rqst: FileRqst) -> std::result::Result<File, &str>{
+    pub fn file_rqst(&mut self, rqst: &FileRqst) -> std::result::Result<File, &str>{
         match &rqst.rqst_tp {
             Request::Read => {
                 if let Some(ref x) = self.find(&rqst.filepath){
@@ -190,10 +193,30 @@ impl Files{
                     Err("No file to copy")
                 }
             },
+            Request::Move(new_path) => {
+                let rqst = FileRqst{
+                    rqst_tp: Request::Copy(new_path.to_string()),
+                    user: rqst.user.clone(),
+                    filepath: rqst.filepath.clone(),
+                };
+                let res = self.file_rqst(&rqst);
+                match res{
+                    Ok(..) => {
+                        let rqst = FileRqst{
+                            rqst_tp: Request::Del,
+                            user: rqst.user.clone(),
+                            filepath: rqst.filepath.clone(),
+                        };
+                        let res = self.file_rqst(&rqst);
+                        res
+                    },
+                    Err(..) => Err("Move failed"),
+                }
+            }
             Request::Del => {
                 if let Some(ref x) = self.find(&rqst.filepath){
                     if x.has_permission(&rqst.user, &Permission::Write){
-                        fs::remove_file(rqst.filepath).unwrap_or_else(|e| {println!("{:?}", e.kind())});
+                        fs::remove_file(rqst.filepath.clone()).map_err(|e| -> String { format!("{:?}", e.kind()) });
                         //self.files.swap_remove();
                         Err("File deleted")
                     }
@@ -205,6 +228,14 @@ impl Files{
                     Err("No file to delete")
                 }
                 
+            },
+            Request::MakeDir => {
+                fs::create_dir_all(rqst.filepath.clone()).map_err(|e| -> String { format!("{:?}", e.kind()) });
+                Err("Directory added")
+            },
+            Request::DelDir => {
+                fs::remove_dir_all(rqst.filepath.clone()).map_err(|e| -> String { format!("{:?}", e.kind()) });
+                Err("not implemented")
             },
         }
     }
