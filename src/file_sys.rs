@@ -5,36 +5,36 @@ use std::io::*;
 use std::path::Path;
 use std::fs;
 
-struct FileInfo{
+struct FileInfo{ // info to access file through std::io
     filepath: String,
     permissions: HashMap<String, Permission>
 }
 
 #[derive(PartialEq)]
-enum Permission{
+enum Permission{ // user permissions
     Owner,
     Read,
     Write,
 }
 
-pub struct FileRqst{
+pub struct FileRqst{ // required info to make a file request
     user: String,
     filepath: String,
     rqst_tp: Request,
 }
 
-pub enum Request{
+pub enum Request{ // various request types
     MakeDir,
     DelDir,
     Read,
-    Write(File),
+    Write(File/*file to write from*/),
     Del,
     Copy(String/*new path*/),
     Move(String/*new path*/),
 }
 
 impl FileRqst{
-    pub fn new(user: String, filepath: String, rqst_tp: Request) -> FileRqst{
+    pub fn new(user: String, filepath: String, rqst_tp: Request) -> FileRqst{ // make new file request
         FileRqst{
             user,
             filepath,
@@ -52,7 +52,7 @@ impl FileInfo{
             _ => false,
         }
     }
-    fn new(filename: String, filepath: String, o: String) -> FileInfo{
+    fn new(filename: String, filepath: String, o: String) -> FileInfo{ // make new fileinfo
         let mut permissions = HashMap::new();
         permissions.insert(o, Permission::Owner);
         FileInfo{
@@ -62,17 +62,17 @@ impl FileInfo{
     }
 }
 
-pub struct Files{
+pub struct Files{ // collection of known files
     files: Vec<FileInfo>,
 }
 
 impl Files{
-    pub fn new() -> Files{
+    pub fn new() -> Files{ // new db
         Files{
             files: Vec::new()
         }
     }
-    fn find(&self, s: &String) -> Option<&FileInfo>{
+    fn find(&self, s: &String) -> Option<&FileInfo>{ // find a fileinfo in db
         for i in &self.files{
             if s == &i.filepath{
                 return Some(i)
@@ -80,7 +80,7 @@ impl Files{
         }
         None
     }
-    pub fn file_rqst(&mut self, rqst: &FileRqst) -> std::result::Result<File, &str>{
+    pub fn file_rqst(&mut self, rqst: &FileRqst) -> std::result::Result<File, &str>{ // do file request
         match &rqst.rqst_tp {
             Request::Read => {
                 if let Some(ref x) = self.find(&rqst.filepath){
@@ -169,7 +169,6 @@ impl Files{
                                     Err(..) => Err("Could not create file"),
                                 };
                                 if let Ok(ref mut y) = nfile{
-                                    
                                     return match y.write_all(&x.buffer()) {
                                         Ok(..) => {
                                             self.files.push(FileInfo::new(new_path.clone(), new_path.clone(), rqst.user.clone()));
