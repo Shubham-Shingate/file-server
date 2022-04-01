@@ -39,9 +39,18 @@ fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
                         .collect::<Result<Vec<_>, io::Error>>().unwrap();
     entries.sort();
     for file in &entries { //Remove this later (no need to print at server side)
-        println!("{:?}", file);
+        println!("{:?}", file); // TODO send print to file-client
     }
     return entries;
+}
+
+fn handle_print_hidden() {
+    // walk current directory and print all hidden (.) directories and files
+    WalkDir::new(".")
+        .into_iter()
+        .filter_entry(|e| is_hidden(e))
+        .filter_map(|v| v.ok())
+        .for_each(|x| println!("{}", x.path().display())); // TODO send print to file-client
 }
 
 
@@ -60,7 +69,7 @@ fn handle_client(mut stream: TcpStream) {
 
             if client_cmd[0] == PRINT_DIR {
                 // Olivia TODO
-                let entries = handle_print_dir(client_cmd[1]);                
+                let entries = handle_print_dir(client_cmd[1]);  
                 // input will be transferred from file-client to file-server via a String input
                 // String will be converted to a Path and then run through the logic within PRINT_DIR from file-client
                 // Note - this logic will be implemented within file-server
