@@ -31,17 +31,18 @@ fn is_hidden(entry: &WalkDirEntry) -> bool {
 }
 
 
-fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
+//fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
+fn handle_print_dir(directory_name: &str) {    
     let path = Path::new(directory_name);
 
     let mut entries= fs::read_dir(path).unwrap() 
-                        .map(|res| res.map(|e| e.path()))
-                        .collect::<Result<Vec<_>, io::Error>>().unwrap();
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>().unwrap();
     entries.sort();
     for file in &entries { //Remove this later (no need to print at server side)
         println!("{:?}", file); // TODO send print to file-client
     }
-    return entries;
+    //return entries;
 }
 
 fn handle_print_hidden() {
@@ -53,7 +54,6 @@ fn handle_print_hidden() {
         .for_each(|x| println!("{}", x.path().display())); // TODO send print to file-client
 }
 
-
 mod file_sys;
 use file_sys::Files;
 
@@ -62,26 +62,24 @@ fn handle_client(mut stream: TcpStream) {
     while match stream.read(&mut data) {
         Ok(size) => {
             // echo everything!
-            stream.write(&data[0..size]).unwrap();
+            //stream.write(&data[0..size]).unwrap();
 
-            let cleint_cmd_str = str::from_utf8(&data).unwrap();
-            let client_cmd: Vec<&str> = cleint_cmd_str.split("#").collect();
+            // collect user input from file-client
+            let client_cmd_str = str::from_utf8(&data).unwrap();
+            let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
 
             if client_cmd[0] == PRINT_DIR {
                 // Olivia TODO
-                let entries = handle_print_dir(client_cmd[1]);  
-                // input will be transferred from file-client to file-server via a String input
-                // String will be converted to a Path and then run through the logic within PRINT_DIR from file-client
-                // Note - this logic will be implemented within file-server
+                //let entries = handle_print_dir(client_cmd[1]);  
+                // input will be transferred from file-client to file-server via a String input  
+                handle_print_dir(client_cmd[1]);  
                 
             } else if client_cmd[0] == QUIT {
                 // print "exiting server.." to file-client
                 exit(0);
             } else if client_cmd[0] == PRINT_HIDDEN {
                 // Olivia TODO
-                // input will be transferred from file-client to file-server via a String input
-                // String will be converted to a Path and then run through the logic within PRINT_DIR from file-client
-                // Note - this logic will be implemented within file-server
+                handle_print_hidden(); 
             }
 
             true
