@@ -5,22 +5,17 @@ use std::io::*;
 use std::path::Path;
 use std::fs;
 
-struct FileInfo{ // info to access file through std::io
-    filepath: String,
-    permissions: HashMap<String, Permission>
-}
-
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 enum Permission{ // user permissions
     Owner,
     Read,
     Write,
 }
 
-pub struct FileRqst{ // required info to make a file request
-    user: String,
+#[derive(Clone)]
+struct FileInfo{ // info to access file through std::io
     filepath: String,
-    rqst_tp: Request,
+    permissions: HashMap<String, Permission>
 }
 
 pub enum Request{ // various request types
@@ -31,6 +26,17 @@ pub enum Request{ // various request types
     Del,
     Copy(String/*new path*/),
     Move(String/*new path*/),
+}
+
+pub struct FileRqst{ // required info to make a file request
+    user: String,
+    filepath: String,
+    rqst_tp: Request,
+}
+
+#[derive(Clone)]
+pub struct Files{ // collection of known files
+    files: Vec<FileInfo>,
 }
 
 impl FileRqst{
@@ -60,10 +66,6 @@ impl FileInfo{
             permissions
         }
     }
-}
-
-pub struct Files{ // collection of known files
-    files: Vec<FileInfo>,
 }
 
 impl Files{

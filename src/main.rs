@@ -6,7 +6,7 @@ use std::fs::File;
 mod file_sys;
 use file_sys::Files;
 
-fn handle_client(mut stream: TcpStream) {
+fn handle_client(mut stream: TcpStream, db: Files) {
     let mut data = [0 as u8; 50]; // using 50 byte buffer
     while match stream.read(&mut data) {
         Ok(size) if size <= 50 => {
@@ -25,6 +25,7 @@ fn handle_client(mut stream: TcpStream) {
         }
     } {
         // do things with data
+        
     }
 }
 
@@ -34,12 +35,13 @@ fn main() {
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");
     for stream in listener.incoming() {
+        let db = db.clone();
         match stream {
             Ok(stream) => {
                 println!("New connection: {}", stream.peer_addr().unwrap());
                 thread::spawn(move|| {
                     // connection succeeded
-                    handle_client(stream)
+                    handle_client(stream, db)
                 });
             }
             Err(e) => {
