@@ -62,8 +62,7 @@ fn handle_client(mut stream: TcpStream) {
     while match stream.read(&mut data) {
         Ok(size) => {
             // echo everything!
-            //stream.write(&data[0..size]).unwrap();
-
+            stream.write(&data[0..size]).unwrap();
             // collect user input from file-client
             let client_cmd_str = str::from_utf8(&data).unwrap();
             let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
