@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::fs::File;
 use std::sync::Arc;
 use tempfile::tempfile;
+use std::time::Duration;
 
 mod file_sys;
 use file_sys::Files;
@@ -53,9 +54,10 @@ fn handle_client(mut stream: TcpStream, mut db: Arc<Files>) {
             false
         }
     } {
+        stream.set_read_timeout(Some(Duration::from_secs(5)));
         if let Ok(..) = stream.read(&mut fle_buf){ // check for attached file data
-            if let Ok(mut file) = tempfile(){ // write file data to temp file
-                if let Ok(..) = file.write_all(&fle_buf){
+            if let Ok(mut file) = tempfile(){ // make temp file to hold data
+                if let Ok(..) = file.write_all(&fle_buf){ // write file data to temp file
                     if let Ok(s) = std::str::from_utf8(&cmd_buf){ // will attempt to make a fn call, not sure how to also include a file
                         if let Ok(s) = pregen_rqst(s.to_string(), Some(file)){ // not sure how to attach file
                             let call = s.0.clone(); // logs fn called
@@ -96,6 +98,7 @@ fn handle_client(mut stream: TcpStream, mut db: Arc<Files>) {
                 }
             }
         }
+        stream.set_read_timeout(None);
         cmd_buf = [0 as u8; BUF_SIZE]; // clear command buffer for next pass
     }
 }
