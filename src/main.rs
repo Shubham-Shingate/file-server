@@ -55,15 +55,17 @@ fn handle_client(mut stream: TcpStream, mut db: Arc<Files>) {
         }
     } {
         stream.set_read_timeout(Some(Duration::from_secs(5)));
+        let failed = true;
         if let Ok(..) = stream.read(&mut fle_buf){ // check for attached file data
             if let Ok(mut file) = tempfile(){ // make temp file to hold data
                 if let Ok(..) = file.write_all(&fle_buf){ // write file data to temp file
                     if let Ok(s) = std::str::from_utf8(&cmd_buf){ // will attempt to make a fn call, not sure how to also include a file
                         if let Ok(s) = pregen_rqst(s.to_string(), Some(file)){ // not sure how to attach file
-                            let call = s.0.clone(); // logs fn called
+                            let call = s.0.clone(); // logs request type
                             if let Ok(ref r) = gen_rqst(s){
                                 match Arc::<Files>::get_mut(&mut db).unwrap().file_rqst(r){
                                     Ok(mut f) => {
+                                        failed = false;
                                         println!("{} succeeded!", call);
                                         fle_buf = [0 as u8; BUF_SIZE]; // clear file buffer for return
                                         if let Ok(size) = f.read(&mut fle_buf){
@@ -82,10 +84,11 @@ fn handle_client(mut stream: TcpStream, mut db: Arc<Files>) {
         else{
             if let Ok(s) = std::str::from_utf8(&cmd_buf){ // will attempt to make a fn call, not sure how to also include a file
                 if let Ok(s) = pregen_rqst(s.to_string(), None){ // not sure how to attach file
-                    let call = s.0.clone(); // logs fn called
+                    let call = s.0.clone(); // logs request type
                     if let Ok(ref r) = gen_rqst(s){
                         match Arc::<Files>::get_mut(&mut db).unwrap().file_rqst(r){
                             Ok(mut f) => {
+                                failed = false;
                                 println!("{} succeeded!", call);
                                 fle_buf = [0 as u8; BUF_SIZE]; // clear file buffer for return
                                 if let Ok(size) = f.read(&mut fle_buf){
@@ -97,6 +100,9 @@ fn handle_client(mut stream: TcpStream, mut db: Arc<Files>) {
                     }
                 }
             }
+        }
+        if failed{
+            println!("An error occured");
         }
         stream.set_read_timeout(None);
         cmd_buf = [0 as u8; BUF_SIZE]; // clear command buffer for next pass
