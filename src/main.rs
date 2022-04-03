@@ -101,7 +101,7 @@ fn gen_rqst((user, cmd, path, path2, atch): (String, String, String, Option<Stri
                 ))
             }
             else{
-                Err("No file to write to")
+                Err("No file to write from")
             }
         }
         "del" => Ok(file_sys::FileRqst::new(
