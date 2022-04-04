@@ -42,7 +42,11 @@ fn handle_print_dir(directory_name: &str) {
         .collect::<Result<Vec<_>, io::Error>>().unwrap();
     entries.sort();
     for file in &entries { //Remove this later (no need to print at server side)
-        println!("{:?}", file); // TODO send print to file-client
+        //println!("{:?}", file); // TODO send print to file-client
+        // prints hidden files in bold red text
+        println!("{}",
+            format!("{:?}", file.to_str()).bold().red()
+        );
     }
     //return entries;
 }
