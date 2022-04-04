@@ -1,58 +1,55 @@
-use std::fs::ReadDir;
-use std::thread;
-use std::net::{TcpListener, TcpStream, Shutdown};
-use std::io::{Read, Write};
-use std::str;
-use std::fs::{self, DirEntry};
-use std::path::Path;
-use std::io;
+mod file_sys;
+mod lib;
+mod constants;
 
-const PRINT_DIR: &str = "printdir";
-const QUIT: &str = "quit";
+use file_sys::Files;
+use lib::LinesCodec;
+use std::fs::ReadDir;
+use std::fs::{self, DirEntry};
+use std::io;
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream};
+use std::path::Path;
+use std::str;
+use std::thread;
 
 fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
     let path = Path::new(directory_name);
 
-    let mut entries= fs::read_dir(path).unwrap() 
-                        .map(|res| res.map(|e| e.path()))
-                        .collect::<Result<Vec<_>, io::Error>>().unwrap();
+    let mut entries = fs::read_dir(path)
+        .unwrap()
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>()
+        .unwrap();
     entries.sort();
-    for file in &entries { //Remove this later (no need to print at server side)
+    for file in &entries {
+        //Remove this later (no need to print at server side)
         println!("{:?}", file);
     }
     return entries;
 }
 
+fn handle_client(stream: TcpStream) -> io::Result<()> {
+    let mut codec = LinesCodec::new(stream)?;
 
-mod file_sys;
-use file_sys::Files;
+    // Respond to initial handshake
+    let msg: String = codec.read_message()?;
+    codec.send_message(&msg)?;
+    println!("Initial handshake was successful !!");
 
-fn handle_client(mut stream: TcpStream) {
-    let mut data = [0 as u8; 50]; // using 50 byte buffer
-    while match stream.read(&mut data) {
-        Ok(size) => {
-            // echo everything!
-            stream.write(&data[0..size]).unwrap();
+    loop {
+        let cleint_cmd_str = str::from_utf8(&data).unwrap();
+        let client_cmd: Vec<&str> = cleint_cmd_str.split("#").collect();
 
-            let cleint_cmd_str = str::from_utf8(&data).unwrap();
-            let client_cmd: Vec<&str> = cleint_cmd_str.split("#").collect();
-
-            if client_cmd[0] == PRINT_DIR {
-               let entries = handle_print_dir(client_cmd[1]);
-               //CONTINUE HERE SHUBHAM
-
-            } else if client_cmd[0] == QUIT {
-                
-            }
-
-            true
-        },
-        Err(_) => {
-            println!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
-            stream.shutdown(Shutdown::Both).unwrap();
-            false
+        if client_cmd[0] == constants::PRINT_DIR {
+            let entries = handle_print_dir(client_cmd[1]);
+            //CONTINUE HERE SHUBHAM
+        } else if client_cmd[0] == constants::QUIT {
+            break;
         }
-    } {}
+    }
+    stream.shutdown(Shutdown::Both).unwrap();
+    Ok(())
 }
 
 fn main() {
@@ -64,7 +61,7 @@ fn main() {
         match stream {
             Ok(stream) => {
                 println!("New connection: {}", stream.peer_addr().unwrap());
-                thread::spawn(move|| {
+                thread::spawn(move || {
                     // connection succeeded
                     handle_client(stream)
                 });
