@@ -7,9 +7,11 @@ use std::fs::{self, DirEntry};
 use std::path::Path;
 use std::io;
 use std::process::exit;
+
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
 use walkdir::WalkDir;
+use colored::Colorize;
 
 // Commands the client can use
 const PRINT_DIR: &str = "printdir";        // lists contents of given directory
