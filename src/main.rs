@@ -55,7 +55,7 @@ fn handle_client(mut stream: TcpStream, mut db: Arc<Files>) {
         }
     } {
         stream.set_read_timeout(Some(Duration::from_secs(5)));
-        let failed = true;
+        let mut failed = true;
         if let Ok(..) = stream.read(&mut fle_buf){ // check for attached file data
             if let Ok(mut file) = tempfile(){ // make temp file to hold data
                 if let Ok(..) = file.write_all(&fle_buf){ // write file data to temp file
