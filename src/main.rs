@@ -74,7 +74,6 @@ fn handle_client(mut stream: TcpStream) {
             let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
 
             if client_cmd[0] == PRINT_DIR {
-                // Olivia TODO
                 //let entries = handle_print_dir(client_cmd[1]);  
                 // input will be transferred from file-client to file-server via a String input  
                 handle_print_dir(client_cmd[1]);  
@@ -83,7 +82,6 @@ fn handle_client(mut stream: TcpStream) {
                 // print "exiting server.." to file-client
                 exit(0);
             } else if client_cmd[0] == PRINT_HIDDEN {
-                // Olivia TODO
                 handle_print_hidden(); 
             }
 
