@@ -1,3 +1,9 @@
+mod file_sys;
+mod lib;
+mod constants;
+
+use file_sys::Files;
+use lib::LinesCodec;
 use std::fs::ReadDir;
 use std::thread;
 use std::net::{TcpListener, TcpStream, Shutdown};
@@ -34,7 +40,7 @@ fn is_hidden(entry: &WalkDirEntry) -> bool {
 
 
 //fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
-fn handle_print_dir(directory_name: &str) {    
+fn handle_print_dir(directory_name: &str) {   // printing to test connection, will change
     let path = Path::new(directory_name);
 
     let mut entries= fs::read_dir(path).unwrap() 
@@ -60,10 +66,8 @@ fn handle_print_hidden() {
         .for_each(|x| println!("{}", x.path().display())); // TODO send print to file-client
 }
 
-mod file_sys;
-use file_sys::Files;
-
-fn handle_client(mut stream: TcpStream) {
+//fn handle_client(mut stream: TcpStream) -> io::Result<()> {
+fn handle_client(mut stream: TcpStream) {    
     let mut data = [0 as u8; 50]; // using 50 byte buffer
     while match stream.read(&mut data) {
         Ok(size) => {
@@ -73,15 +77,16 @@ fn handle_client(mut stream: TcpStream) {
             let client_cmd_str = str::from_utf8(&data).unwrap();
             let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
 
-            if client_cmd[0] == PRINT_DIR {
+            if client_cmd[0] == PRINT_DIR || client_cmd[0] == "pdir" {
                 //let entries = handle_print_dir(client_cmd[1]);  
                 // input will be transferred from file-client to file-server via a String input  
                 handle_print_dir(client_cmd[1]);  
                 
-            } else if client_cmd[0] == QUIT {
+            } else if client_cmd[0] == QUIT || client_cmd[0] == "q" {
                 // print "exiting server.." to file-client
                 exit(0);
-            } else if client_cmd[0] == PRINT_HIDDEN {
+            } else if client_cmd[0] == PRINT_HIDDEN || client_cmd[0] == "ls -al" {
+                // Olivia TODO
                 handle_print_hidden(); 
             }
 
@@ -93,6 +98,26 @@ fn handle_client(mut stream: TcpStream) {
             false
         }
     } {}
+    /*let mut codec = LinesCodec::new(stream)?;
+
+    // Respond to initial handshake
+    let msg: String = codec.read_message()?;
+    codec.send_message(&msg)?;
+    println!("Initial handshake was successful !!");
+
+    loop {
+        let client_cmd_str = str::from_utf8(&data).unwrap();
+        let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
+
+        if client_cmd[0] == constants::PRINT_DIR {
+            let entries = handle_print_dir(client_cmd[1]);
+            //CONTINUE HERE SHUBHAM
+        } else if client_cmd[0] == constants::QUIT {
+            break;
+        }
+    }
+    stream.shutdown(Shutdown::Both).unwrap();
+    Ok(())*/
 }
 
 fn main() {
@@ -104,7 +129,7 @@ fn main() {
         match stream {
             Ok(stream) => {
                 println!("New connection: {}", stream.peer_addr().unwrap());
-                thread::spawn(move|| {
+                thread::spawn(move || {
                     // connection succeeded
                     handle_client(stream)
                 });
