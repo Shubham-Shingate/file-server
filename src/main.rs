@@ -1,3 +1,9 @@
+mod file_sys;
+mod lib;
+mod constants;
+
+use file_sys::Files;
+use lib::LinesCodec;
 use std::fs::ReadDir;
 use std::thread;
 use std::net::{TcpListener, TcpStream, Shutdown};
@@ -7,9 +13,11 @@ use std::fs::{self, DirEntry};
 use std::path::Path;
 use std::io;
 use std::process::exit;
+
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
 use walkdir::WalkDir;
+use colored::Colorize;
 
 // Commands the client can use
 const PRINT_DIR: &str = "printdir";        // lists contents of given directory
@@ -31,48 +39,55 @@ fn is_hidden(entry: &WalkDirEntry) -> bool {
 }
 
 
-fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
+//fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
+fn handle_print_dir(directory_name: &str) {   // printing to test connection, will change
     let path = Path::new(directory_name);
 
     let mut entries= fs::read_dir(path).unwrap() 
-                        .map(|res| res.map(|e| e.path()))
-                        .collect::<Result<Vec<_>, io::Error>>().unwrap();
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>().unwrap();
     entries.sort();
     for file in &entries { //Remove this later (no need to print at server side)
-        println!("{:?}", file);
+        //println!("{:?}", file); // TODO send print to file-client
+        // prints hidden files in bold red text
+        println!("{}",
+            format!("{:?}", file.to_str()).bold().red()
+        );
     }
-    return entries;
+    //return entries;
 }
 
+fn handle_print_hidden() {
+    // walk current directory and print all hidden (.) directories and files
+    WalkDir::new(".")
+        .into_iter()
+        .filter_entry(|e| is_hidden(e))
+        .filter_map(|v| v.ok())
+        .for_each(|x| println!("{}", x.path().display())); // TODO send print to file-client
+}
 
-mod file_sys;
-use file_sys::Files;
-
-fn handle_client(mut stream: TcpStream) {
+//fn handle_client(mut stream: TcpStream) -> io::Result<()> {
+fn handle_client(mut stream: TcpStream) {    
     let mut data = [0 as u8; 50]; // using 50 byte buffer
     while match stream.read(&mut data) {
         Ok(size) => {
             // echo everything!
             stream.write(&data[0..size]).unwrap();
+            // collect user input from file-client
+            let client_cmd_str = str::from_utf8(&data).unwrap();
+            let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
 
-            let cleint_cmd_str = str::from_utf8(&data).unwrap();
-            let client_cmd: Vec<&str> = cleint_cmd_str.split("#").collect();
-
-            if client_cmd[0] == PRINT_DIR {
-                // Olivia TODO
-                let entries = handle_print_dir(client_cmd[1]);                
-                // input will be transferred from file-client to file-server via a String input
-                // String will be converted to a Path and then run through the logic within PRINT_DIR from file-client
-                // Note - this logic will be implemented within file-server
+            if client_cmd[0] == PRINT_DIR || client_cmd[0] == "pdir" {
+                //let entries = handle_print_dir(client_cmd[1]);  
+                // input will be transferred from file-client to file-server via a String input  
+                handle_print_dir(client_cmd[1]);  
                 
-            } else if client_cmd[0] == QUIT {
+            } else if client_cmd[0] == QUIT || client_cmd[0] == "q" {
                 // print "exiting server.." to file-client
                 exit(0);
-            } else if client_cmd[0] == PRINT_HIDDEN {
+            } else if client_cmd[0] == PRINT_HIDDEN || client_cmd[0] == "ls -al" {
                 // Olivia TODO
-                // input will be transferred from file-client to file-server via a String input
-                // String will be converted to a Path and then run through the logic within PRINT_DIR from file-client
-                // Note - this logic will be implemented within file-server
+                handle_print_hidden(); 
             }
 
             true
@@ -83,6 +98,26 @@ fn handle_client(mut stream: TcpStream) {
             false
         }
     } {}
+    /*let mut codec = LinesCodec::new(stream)?;
+
+    // Respond to initial handshake
+    let msg: String = codec.read_message()?;
+    codec.send_message(&msg)?;
+    println!("Initial handshake was successful !!");
+
+    loop {
+        let client_cmd_str = str::from_utf8(&data).unwrap();
+        let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
+
+        if client_cmd[0] == constants::PRINT_DIR {
+            let entries = handle_print_dir(client_cmd[1]);
+            //CONTINUE HERE SHUBHAM
+        } else if client_cmd[0] == constants::QUIT {
+            break;
+        }
+    }
+    stream.shutdown(Shutdown::Both).unwrap();
+    Ok(())*/
 }
 
 fn main() {
@@ -94,7 +129,7 @@ fn main() {
         match stream {
             Ok(stream) => {
                 println!("New connection: {}", stream.peer_addr().unwrap());
-                thread::spawn(move|| {
+                thread::spawn(move || {
                     // connection succeeded
                     handle_client(stream)
                 });
