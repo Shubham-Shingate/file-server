@@ -2,37 +2,22 @@ mod file_sys;
 mod lib;
 mod constants;
 
-use file_sys::Files;
+use file_sys::{Files, FileError};
 use lib::LinesCodec;
-use std::fs::ReadDir;
+use std::io;
 use std::thread;
-use std::net::{TcpListener, TcpStream, Shutdown};
-use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::fs::File;
 use std::sync::Arc;
-use tempfile::tempfile;
-use std::time::Duration;
-use std::str;
-use std::fs::{self, DirEntry};
+use std::fs;
 use std::path::Path;
-use std::io;
-use std::process::exit;
+use std::str;
+use std::error;
 
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
 use walkdir::WalkDir;
 use colored::Colorize;
-
-// Commands the client can use
-const PRINT_DIR: &str = "printdir";        // lists contents of given directory
-const PRINT_HIDDEN: &str = "ls -al";       // lists all hidden (.) files and directories
-const QUIT: &str = "quit";                 // quits the file-client using exit()
-const HELP: &str = "help";                 // lists all possible file operations/commands
-
-/*
-    TODO Commands:
-    SEARCH          - "search"  ---- searches files' content and filenames that match the given search input
- */
 
  // returns true if file or directory is hidden; false otherwise
 fn is_hidden(entry: &WalkDirEntry) -> bool {
@@ -41,7 +26,6 @@ fn is_hidden(entry: &WalkDirEntry) -> bool {
          .map(|s| s.starts_with("."))
          .unwrap_or(false)
 }
-
 
 //fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
 fn handle_print_dir(directory_name: &str) {   // printing to test connection, will change
@@ -70,66 +54,8 @@ fn handle_print_hidden() {
         .for_each(|x| println!("{}", x.path().display())); // TODO send print to file-client
 }
 
-
-// initialize & run server
-// ---------- OLD START ---------- //
-////fn handle_client(mut stream: TcpStream) -> io::Result<()> {
-//fn handle_client(mut stream: TcpStream) {    
-//    let mut data = [0 as u8; 50]; // using 50 byte buffer
-//    while match stream.read(&mut data) {
-//        Ok(size) => {
-//            // echo everything!
-//            stream.write(&data[0..size]).unwrap();
-//            // collect user input from file-client
-//            let client_cmd_str = str::from_utf8(&data).unwrap();
-//            let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
-//
-//            if client_cmd[0] == PRINT_DIR || client_cmd[0] == "pdir" {
-//                //let entries = handle_print_dir(client_cmd[1]);  
-//                // input will be transferred from file-client to file-server via a String input  
-//                handle_print_dir(client_cmd[1]);  
-//                
-//            } else if client_cmd[0] == QUIT || client_cmd[0] == "q" {
-//                // print "exiting server.." to file-client
-//                exit(0);
-//            } else if client_cmd[0] == PRINT_HIDDEN || client_cmd[0] == "ls -al" {
-//                // Olivia TODO
-//                handle_print_hidden(); 
-//            }
-//
-//            true
-//        },
-//        Err(_) => {
-//            println!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
-//            stream.shutdown(Shutdown::Both).unwrap();
-//            false
-//        }
-//    } {}
-//    /*let mut codec = LinesCodec::new(stream)?;
-//
-//    // Respond to initial handshake
-//    let msg: String = codec.read_message()?;
-//    codec.send_message(&msg)?;
-//    println!("Initial handshake was successful !!");
-//
-//    loop {
-//        let client_cmd_str = str::from_utf8(&data).unwrap();
-//        let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
-//
-//        if client_cmd[0] == constants::PRINT_DIR {
-//            let entries = handle_print_dir(client_cmd[1]);
-//            //CONTINUE HERE SHUBHAM
-//        } else if client_cmd[0] == constants::QUIT {
-//            break;
-//        }
-//    }
-//    stream.shutdown(Shutdown::Both).unwrap();
-//    Ok(())*/
-//}
-// ---------- OLD END ---------- //
-
 fn main() {
-    let mut db = Arc::new(Files::new()); // init database
+    let db = Arc::new(Files::new()); // init database
     let listener = TcpListener::bind("localhost:3333").unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");
@@ -140,7 +66,10 @@ fn main() {
                 println!("New connection: {}", stream.peer_addr().unwrap());
                 let lcl_db = Arc::clone(&db); // create new database reference for thread
                 thread::spawn(move|| {
-                    handle_client(stream, lcl_db); // connection succeeded
+                    match handle_client(stream, lcl_db){
+                        Ok(()) => (),
+                        Err(e) => println!("Error in Connection: {}", e),
+                    }
                 });
             }
             Err(e) => {
@@ -152,83 +81,33 @@ fn main() {
 }
 
 // handle individual clients
-fn handle_client(mut stream: TcpStream, mut db: Arc<Files>) {
-    const BUF_SIZE: usize = 1024;
-    let mut cmd_buf = [0 as u8; BUF_SIZE]; // buffer for command
-    let mut fle_buf = [0 as u8; BUF_SIZE]; // buffer for attached file
-    while match stream.read(&mut cmd_buf) {
-        Ok(size) if size <= BUF_SIZE => {
-            // echo everything!
-            stream.write(&cmd_buf[0..size]).unwrap();
-            true
-        },
-        Ok(..) => {
-            println!("Data exceeded buffer size!");
-            true
-        }
-        Err(_) => {
-            println!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
-            stream.shutdown(Shutdown::Both).unwrap();
-            false
-        }
-    } {
-        stream.set_read_timeout(Some(Duration::from_secs(5)));
-        let mut failed = true;
-        if let Ok(..) = stream.read(&mut fle_buf){ // check for attached file data
-            if let Ok(mut file) = tempfile(){ // make temp file to hold data
-                if let Ok(..) = file.write_all(&fle_buf){ // write file data to temp file
-                    if let Ok(s) = std::str::from_utf8(&cmd_buf){ // will attempt to make a fn call, not sure how to also include a file
-                        if let Ok(s) = pregen_rqst(s.to_string(), Some(file)){ // not sure how to attach file
-                            let call = s.0.clone(); // logs request type
-                            if let Ok(ref r) = gen_rqst(s){
-                                match Arc::<Files>::get_mut(&mut db).unwrap().file_rqst(r){
-                                    Ok(mut f) => {
-                                        failed = false;
-                                        println!("{} succeeded!", call);
-                                        fle_buf = [0 as u8; BUF_SIZE]; // clear file buffer for return
-                                        if let Ok(size) = f.read(&mut fle_buf){
-                                            stream.write(&fle_buf[0..size]).unwrap(); // return file data to stream
-                                        }
-                                    },
-                                    Err(e) => println!("{}", e),
-                                };
-                            }
-                        }
-                    }
+fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn error::Error>> {
+    println!("Connection to {} Successful!", &stream.peer_addr()?);
+    let mut codec = LinesCodec::new(stream)?;
+    let quit = String::from("quit");
+    loop {
+        match codec.read_message(){ // command
+            Ok(cmd) if cmd == quit => break, // end conncetion
+            Ok(cmd) => { // run command from file_sys
+                codec.set_timeout(5);
+                match Arc::<Files>::get_mut(&mut db).unwrap().file_request(&gen_request(pregen_request(cmd.to_string(), codec.read_file().ok())?)?)?{
+                    Some(file) => codec.send_file(&file)?,
+                    None => codec.send_message("success!")?,
                 }
-            }
-            fle_buf = [0 as u8; BUF_SIZE]; // clear fiile buffer for next pass
-        }
-        else{
-            if let Ok(s) = std::str::from_utf8(&cmd_buf){ // will attempt to make a fn call, not sure how to also include a file
-                if let Ok(s) = pregen_rqst(s.to_string(), None){ // not sure how to attach file
-                    let call = s.0.clone(); // logs request type
-                    if let Ok(ref r) = gen_rqst(s){
-                        match Arc::<Files>::get_mut(&mut db).unwrap().file_rqst(r){
-                            Ok(mut f) => {
-                                failed = false;
-                                println!("{} succeeded!", call);
-                                fle_buf = [0 as u8; BUF_SIZE]; // clear file buffer for return
-                                if let Ok(size) = f.read(&mut fle_buf){
-                                    stream.write(&fle_buf[0..size]).unwrap(); // return file data to stream
-                                }
-                            },
-                            Err(e) => println!("{}", e),
-                        };
-                    }
-                }
+                codec.set_timeout(0);
+            },
+            Err(e) => {
+                codec.kill(); // shutdown connection
+                return Err(Box::new(e)) // report error
             }
         }
-        if failed{
-            println!("An error occured");
-        }
-        stream.set_read_timeout(None);
-        cmd_buf = [0 as u8; BUF_SIZE]; // clear command buffer for next pass
     }
+    codec.kill(); // shutdown connection
+    Ok(())
 }
 
 // convert single string to elems for file request
-fn pregen_rqst(s: String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), &'static str>{
+fn pregen_request(s: String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), FileError>{
     let mut s = s.split_whitespace();
     if let Some(u) = s.next(){ // user
         if let Some(c) = s.next(){ // command
@@ -240,69 +119,69 @@ fn pregen_rqst(s: String, a: Option<File>) -> Result<(String, String, String, Op
             }
         }
     }
-    Err("Invalid argument count")
+    Err(FileError::BadCommand)
 }
 
 // generate file request to call from db
-fn gen_rqst((user, cmd, path, path2, atch): (String, String, String, Option<String>, Option<File>)) -> Result<file_sys::FileRqst, &'static str>{
+fn gen_request((user, cmd, path, path2, attachment): (String, String, String, Option<String>, Option<File>)) -> Result<file_sys::FileRequest, FileError>{
     let cmd = &cmd[..]; // convert command string to string literal for easier matching
     match cmd{
-        "read" => Ok(file_sys::FileRqst::new( // read file
+        "read" => Ok(file_sys::FileRequest::new( // read file
             user,
             path,
             file_sys::Request::Read,
         )),
         "write" => { // write to file
-            if let Some(x) = atch{
-                Ok(file_sys::FileRqst::new(
+            if let Some(file) = attachment{
+                Ok(file_sys::FileRequest::new(
                     user,
                     path,
-                    file_sys::Request::Write(x),
+                    file_sys::Request::Write(file),
                 ))
             }
             else{
-                Err("No file to write from")
+                Err(FileError::MissingFile)
             }
         }
-        "del" => Ok(file_sys::FileRqst::new( // delete file
+        "del" => Ok(file_sys::FileRequest::new( // delete file
             user,
             path,
             file_sys::Request::Del,
         )),
         "copy" => { // copy file to new location
-            if let Some(x) = path2{ // copy to path2 from path
-                Ok(file_sys::FileRqst::new(
+            if let Some(new_path) = path2{ // copy to path2 from path
+                Ok(file_sys::FileRequest::new(
                     user,
                     path,
-                    file_sys::Request::Copy(x),
+                    file_sys::Request::Copy(new_path),
                 ))
             }
             else{
-                Err("No destination provided")
+                Err(FileError::MissingTarget)
             }
         },
         "move" => { // move file to new location
-            if let Some(x) = path2{ // move to path2 from path
-                Ok(file_sys::FileRqst::new(
+            if let Some(new_path) = path2{ // move to path2 from path
+                Ok(file_sys::FileRequest::new(
                     user,
                     path,
-                    file_sys::Request::Move(x),
+                    file_sys::Request::Move(new_path),
                 ))
             }
             else{
-                Err("No file to move")
+                Err(FileError::MissingTarget)
             }
         },
-        "mkdir" => Ok(file_sys::FileRqst::new( // make directory
+        "mkdir" => Ok(file_sys::FileRequest::new( // make directory
             user,
             path,
             file_sys::Request::MakeDir,
         )),
-        "rmdir" => Ok(file_sys::FileRqst::new( // remove directory
+        "rmdir" => Ok(file_sys::FileRequest::new( // remove directory
             user,
             path,
             file_sys::Request::DelDir,
         )),
-        _ => Err("Invalid Command"), // default when command has no equivalent
+        _ => Err(FileError::BadCommand), // default when command has no equivalent
     }
 }
