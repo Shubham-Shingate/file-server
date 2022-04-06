@@ -1,6 +1,6 @@
+mod constants;
 mod file_sys;
 mod lib;
-mod constants;
 
 use file_sys::Files;
 use lib::LinesCodec;
@@ -13,42 +13,41 @@ use std::path::Path;
 use std::str;
 use std::thread;
 
-fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
-    let path = Path::new(directory_name);
-
-    let mut entries = fs::read_dir(path)
-        .unwrap()
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, io::Error>>()
-        .unwrap();
-    entries.sort();
-    for file in &entries {
-        //Remove this later (no need to print at server side)
-        println!("{:?}", file);
-    }
-    return entries;
+fn handle_print_dir(dir_path: &str) -> ReadDir {
+    //let path = Path::new(directory_name)
+    let paths = fs::read_dir(dir_path).unwrap();    
+    return paths;
 }
 
 fn handle_client(stream: TcpStream) -> io::Result<()> {
     let mut codec = LinesCodec::new(stream)?;
 
     // Respond to initial handshake
-    let msg: String = codec.read_message()?;
+    let mut msg: String = codec.read_message()?;
     codec.send_message(&msg)?;
     println!("Initial handshake was successful !!");
 
     loop {
-        let cleint_cmd_str = str::from_utf8(&data).unwrap();
-        let client_cmd: Vec<&str> = cleint_cmd_str.split("#").collect();
+        msg = codec.read_message()?;
+        let cmd_vec: Vec<&str> = msg.split(" ").collect();
 
-        if client_cmd[0] == constants::PRINT_DIR {
-            let entries = handle_print_dir(client_cmd[1]);
-            //CONTINUE HERE SHUBHAM
-        } else if client_cmd[0] == constants::QUIT {
+        if cmd_vec[0] == constants::QUIT {
+            println!("exiting the server...");
             break;
+        } else if cmd_vec[0] == constants::PRINT_DIR {
+            let dir_path = cmd_vec[1];
+            println!("dir specified: {}", dir_path);
+            let paths = handle_print_dir(&dir_path);
+            let mut result_str = String::from("");
+            for path in paths { 
+                result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
+            }
+            codec.send_message(&result_str)?;
+        } else {
+            
         }
     }
-    stream.shutdown(Shutdown::Both).unwrap();
+
     Ok(())
 }
 
