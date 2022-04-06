@@ -1,5 +1,5 @@
 use std::io::{self, BufRead, BufReader, BufWriter, LineWriter, Write, Read};
-use std::net::{TcpStream, Shutdown};
+use std::net::TcpStream;
 use std::time::Duration;
 use std::fs::File;
 use tempfile::tempfile;
@@ -26,10 +26,6 @@ impl LinesCodec {
             0 => self.reader.get_mut().set_read_timeout(None),
             _ => self.reader.get_mut().set_read_timeout(Some(Duration::from_secs(time))),
         };
-    }
-
-    pub fn kill(&mut self) {
-        self.reader.get_mut().shutdown(Shutdown::Both).unwrap();
     }
 
     /// Write the given message (appending a newline) to the TcpStream

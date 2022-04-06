@@ -9,7 +9,7 @@ use std::thread;
 use std::net::{TcpListener, TcpStream};
 use std::fs::File;
 use std::sync::Arc;
-use std::fs;
+use std::fs::{self, ReadDir};
 use std::path::Path;
 use std::str;
 use std::error;
@@ -149,12 +149,10 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                 codec.set_timeout(0);
             },
             Err(e) => {
-                codec.kill(); // shutdown connection
                 return Err(Box::new(e)) // report error
             }
         }
     }
-    codec.kill(); // shutdown connection
     Ok(())
 }
 
