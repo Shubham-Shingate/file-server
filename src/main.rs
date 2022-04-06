@@ -13,6 +13,10 @@ use std::fs::{self, DirEntry};
 use std::path::Path;
 use std::io;
 use std::process::exit;
+use std::fs::File;
+use std::sync::Arc;
+use tempfile::tempfile;
+use std::time::Duration;
 
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
@@ -137,4 +141,84 @@ fn main() {
     }
     // close the socket server
     drop(listener);
+}
+
+// convert single string to elems for file request
+fn pregen_rqst(s: String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), &'static str>{
+    let mut s = s.split_whitespace();
+    if let Some(u) = s.next(){ // user
+        if let Some(c) = s.next(){ // command
+            if let Some(p) = s.next(){ // path
+                match s.next(){ // path2
+                    Some(p2) => return Ok((u.to_string(), c.to_string(), p.to_string(), Some(p2.to_string()), a)),
+                    None => return Ok((u.to_string(), c.to_string(), p.to_string(), None, a)),
+                }
+            }
+        }
+    }
+    Err("Invalid argument count")
+}
+
+// generate file request to call from db
+fn gen_rqst((user, cmd, path, path2, atch): (String, String, String, Option<String>, Option<File>)) -> Result<file_sys::FileRqst, &'static str>{
+    let cmd = &cmd[..]; // convert command string to string literal for easier matching
+    match cmd{
+        "read" => Ok(file_sys::FileRqst::new( // read file
+            user,
+            path,
+            file_sys::Request::Read,
+        )),
+        "write" => { // write to file
+            if let Some(x) = atch{
+                Ok(file_sys::FileRqst::new(
+                    user,
+                    path,
+                    file_sys::Request::Write(x),
+                ))
+            }
+            else{
+                Err("No file to write from")
+            }
+        }
+        "del" => Ok(file_sys::FileRqst::new( // delete file
+            user,
+            path,
+            file_sys::Request::Del,
+        )),
+        "copy" => { // copy file to new location
+            if let Some(x) = path2{ // copy to path2 from path
+                Ok(file_sys::FileRqst::new(
+                    user,
+                    path,
+                    file_sys::Request::Copy(x),
+                ))
+            }
+            else{
+                Err("No destination provided")
+            }
+        },
+        "move" => { // move file to new location
+            if let Some(x) = path2{ // move to path2 from path
+                Ok(file_sys::FileRqst::new(
+                    user,
+                    path,
+                    file_sys::Request::Move(x),
+                ))
+            }
+            else{
+                Err("No file to move")
+            }
+        },
+        "mkdir" => Ok(file_sys::FileRqst::new( // make directory
+            user,
+            path,
+            file_sys::Request::MakeDir,
+        )),
+        "rmdir" => Ok(file_sys::FileRqst::new( // remove directory
+            user,
+            path,
+            file_sys::Request::DelDir,
+        )),
+        _ => Err("Invalid Command"), // default when command has no equivalent
+    }
 }
