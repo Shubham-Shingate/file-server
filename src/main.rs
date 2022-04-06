@@ -30,7 +30,7 @@ const HELP: &str = "help";                 // lists all possible file operations
     SEARCH          - "search"  ---- searches files' content and filenames that match the given search input
  */
 
- // returns true if file or directory is hidden; false otherwise
+// returns true if file or directory is hidden; false otherwise
 fn is_hidden(entry: &WalkDirEntry) -> bool {
     entry.file_name()
          .to_str()
@@ -38,93 +38,88 @@ fn is_hidden(entry: &WalkDirEntry) -> bool {
          .unwrap_or(false)
 }
 
+fn handle_print_dir(dir_path: &str) -> ReadDir {
+    /// TODO check that directory exists ///
 
-//fn handle_print_dir(directory_name: &str) -> Vec<std::path::PathBuf> {
-fn handle_print_dir(directory_name: &str) {   // printing to test connection, will change
+    let paths = fs::read_dir(dir_path).unwrap();    
+    return paths;
+    /*
     let path = Path::new(directory_name);
-
-    let mut entries= fs::read_dir(path).unwrap() 
+    let mut entries = fs::read_dir(path)
+        .unwrap()
         .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, io::Error>>().unwrap();
+        .collect::<Result<Vec<_>, io::Error>>()
+        .unwrap();
     entries.sort();
-    for file in &entries { //Remove this later (no need to print at server side)
-        //println!("{:?}", file); // TODO send print to file-client
-        // prints hidden files in bold red text
-        println!("{}",
-            format!("{:?}", file.to_str()).bold().red()
-        );
+    for file in &entries {
+        //Remove this later (no need to print at server side)
+        println!("{:?}", file);
     }
-    //return entries;
+    return entries;*/
 }
 
-fn handle_print_hidden() {
+fn handle_print_hidden() -> Vec<walkdir::DirEntry> {
     // walk current directory and print all hidden (.) directories and files
-    WalkDir::new(".")
+    let paths = WalkDir::new(".")
         .into_iter()
         .filter_entry(|e| is_hidden(e))
-        .filter_map(|v| v.ok())
-        .for_each(|x| println!("{}", x.path().display())); // TODO send print to file-client
+        .filter_map(|v| v.ok());
+        //.for_each(|x| println!("{}", x.path().display())) // TODO send print to file-client
+    let mut vec: Vec<walkdir::DirEntry> = Vec::new();
+    for e in paths {
+        vec.push(e);        
+    }
+    return vec;   
 }
 
-//fn handle_client(mut stream: TcpStream) -> io::Result<()> {
-fn handle_client(mut stream: TcpStream) {    
-    let mut data = [0 as u8; 50]; // using 50 byte buffer
-    while match stream.read(&mut data) {
-        Ok(size) => {
-            // echo everything!
-            stream.write(&data[0..size]).unwrap();
-            // collect user input from file-client
-            let client_cmd_str = str::from_utf8(&data).unwrap();
-            let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
-
-            if client_cmd[0] == PRINT_DIR || client_cmd[0] == "pdir" {
-                //let entries = handle_print_dir(client_cmd[1]);  
-                // input will be transferred from file-client to file-server via a String input  
-                handle_print_dir(client_cmd[1]);  
-                
-            } else if client_cmd[0] == QUIT || client_cmd[0] == "q" {
-                // print "exiting server.." to file-client
-                exit(0);
-            } else if client_cmd[0] == PRINT_HIDDEN || client_cmd[0] == "ls -al" {
-                // Olivia TODO
-                handle_print_hidden(); 
-            }
-
-            true
-        },
-        Err(_) => {
-            println!("An error occurred, terminating connection with {}", stream.peer_addr().unwrap());
-            stream.shutdown(Shutdown::Both).unwrap();
-            false
-        }
-    } {}
-    /*let mut codec = LinesCodec::new(stream)?;
+fn handle_client(mut stream: TcpStream) -> io::Result<()> {
+     let mut codec = LinesCodec::new(stream)?;
 
     // Respond to initial handshake
-    let msg: String = codec.read_message()?;
+    let mut msg: String = codec.read_message()?;
     codec.send_message(&msg)?;
     println!("Initial handshake was successful !!");
 
     loop {
-        let client_cmd_str = str::from_utf8(&data).unwrap();
-        let client_cmd: Vec<&str> = client_cmd_str.split("#").collect();
+        msg = codec.read_message()?;
+        // TODO check that         
+        let cmd_vec: Vec<&str> = msg.split(" ").collect();
 
-        if client_cmd[0] == constants::PRINT_DIR {
-            let entries = handle_print_dir(client_cmd[1]);
-            //CONTINUE HERE SHUBHAM
-        } else if client_cmd[0] == constants::QUIT {
+        if cmd_vec[0] == constants::QUIT {
+            println!("exiting the server...");
             break;
+        } else if cmd_vec[0] == constants::PRINT_DIR {
+            let dir_path = cmd_vec[1];
+            println!("dir specified: {}", dir_path);
+            let paths = handle_print_dir(&dir_path);
+            let mut result_str = String::from("");
+            for path in paths { 
+                result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
+            }
+            codec.send_message(&result_str)?;
+        } 
+        else if cmd_vec[0] == constants::PRINT_HIDDEN {
+            let vec = handle_print_hidden();
+            let mut result_str = String::from("");
+
+            for e in vec { 
+                //result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
+                if e.file_name() != "." && e.file_name() != ".git" && e.file_name() != ".workflows" 
+                    && e.file_name() != ".gitignore" {
+                    result_str = result_str + &format!("{:?}", e.file_name()) + " ";
+                } 
+            }
+            codec.send_message(&result_str)?;
         }
     }
-    stream.shutdown(Shutdown::Both).unwrap();
-    Ok(())*/
+
+    Ok(())
 }
 
 fn main() {
     let mut db = Files::new();
     let listener = TcpListener::bind("localhost:3333").unwrap();
     // accept connections and process them, spawning a new thread for each one
-    println!("Server listening on port 3333");
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
