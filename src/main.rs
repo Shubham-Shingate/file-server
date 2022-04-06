@@ -8,15 +8,15 @@ use std::fs::ReadDir;
 use std::thread;
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::io::{Read, Write};
+use std::fs::File;
+use std::sync::Arc;
+//use tempfile::tempfile;
+use std::time::Duration;
 use std::str;
 use std::fs::{self, DirEntry};
 use std::path::Path;
 use std::io;
 use std::process::exit;
-use std::fs::File;
-use std::sync::Arc;
-use tempfile::tempfile;
-use std::time::Duration;
 
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
@@ -120,6 +120,7 @@ fn handle_client(mut stream: TcpStream) -> io::Result<()> {
     Ok(())
 }
 
+// kept old main, this will need to be fixed with @Matthew's IO code
 fn main() {
     let mut db = Files::new();
     let listener = TcpListener::bind("localhost:3333").unwrap();
