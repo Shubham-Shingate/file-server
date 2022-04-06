@@ -45,9 +45,10 @@ pub enum Request{ // various request types
     DelDir,
     Read,
     Write(File/*file to write from*/),
-    Del,
-    Copy(String/*new path*/),
     Move(String/*new path*/),
+    Copy(String/*new path*/),
+    Del,
+
 }
 
 pub struct FileRequest{ // required info to make a file request
@@ -174,7 +175,7 @@ impl Files{
             Request::Del => {
                 if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Write){ // check permission
                     fs::remove_file(request.filepath.clone())?; // remove file
-                    //self.files.swap_remove(); // need to get index somehow
+                    self.files.swap_remove(self.files.iter().position(|x| x.filepath == request.filepath).unwrap()); // remove fileinfo
                     Ok(None)
                 }
                 else{
