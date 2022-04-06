@@ -1,9 +1,31 @@
 use std::collections::HashMap;
+use std::fmt;
+use std::error;
 use std::fs::File;
-use std::io;
 use std::io::*;
 use std::path::Path;
 use std::fs;
+
+#[derive(Debug)]
+pub enum FileError {
+    PermissionDenied,
+    MissingFile,
+    MissingTarget,
+    BadCommand,
+}
+
+impl fmt::Display for FileError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result{
+        match self{
+            FileError::PermissionDenied => write!(f, "You do not have permission to access the file"),
+            FileError::MissingFile => write!(f, "File Not Found"),
+            FileError::MissingTarget => write!(f, "No Destination Provided"),
+            FileError::BadCommand => write!(f, "Invalid File Request"),
+        }
+    }
+}
+
+impl error::Error for FileError {}
 
 #[derive(PartialEq, Clone)]
 enum Permission{ // user permissions
@@ -23,15 +45,16 @@ pub enum Request{ // various request types
     DelDir,
     Read,
     Write(File/*file to write from*/),
-    Del,
-    Copy(String/*new path*/),
     Move(String/*new path*/),
+    Copy(String/*new path*/),
+    Del,
+
 }
 
-pub struct FileRqst{ // required info to make a file request
+pub struct FileRequest{ // required info to make a file request
     user: String,
     filepath: String,
-    rqst_tp: Request,
+    request_type: Request,
 }
 
 #[derive(Clone)]
@@ -39,12 +62,12 @@ pub struct Files{ // collection of known files
     files: Vec<FileInfo>,
 }
 
-impl FileRqst{
-    pub fn new(user: String, filepath: String, rqst_tp: Request) -> FileRqst{ // make new file request
-        FileRqst{
+impl FileRequest{
+    pub fn new(user: String, filepath: String, request_type: Request) -> FileRequest{ // make new file request
+        FileRequest{
             user,
             filepath,
-            rqst_tp,
+            request_type,
         }
     }
 }
@@ -74,175 +97,99 @@ impl Files{
             files: Vec::new()
         }
     }
-    fn find(&self, s: &String) -> Option<&FileInfo>{ // find a fileinfo in db
+    fn find(&self, s: &String) -> std::result::Result<&FileInfo, FileError>{ // find a fileinfo in db
         for i in &self.files{
             if s == &i.filepath{
-                return Some(i)
+                return Ok(i)
             }
         }
-        None
+        Err(FileError::MissingFile)
     }
-    pub fn file_rqst(&mut self, rqst: &FileRqst) -> std::result::Result<File, &str>{ // do file request
-        match &rqst.rqst_tp {
+    pub fn file_request(&mut self, request: &FileRequest) -> std::result::Result<Option<File>, Box<dyn error::Error>>{ // do file request
+        match &request.request_type {
             Request::Read => {
-                if let Some(ref x) = self.find(&rqst.filepath){ // look for file
-                    if x.has_permission(&rqst.user, &Permission::Read){ // check permission
-                        match File::open(Path::new(&rqst.filepath)){
-                            Ok(x) => Ok(x),
-                            Err(..) => Err("File not found"),
-                        }
+                if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission
+                        Ok(Some(File::open(Path::new(&request.filepath))?))
                     }
                     else{
-                        Err("You do not have permission to access this file")
+                        Err(Box::new(FileError::PermissionDenied))
                     }
-                }
-                else{
-                    Err("File not in system")
-                }
             },
-            Request::Write(a) => { 
+            Request::Write(a) => {
                 let a = BufReader::new(a); // make buffer to write from
-                if let Some(ref x) = self.find(&rqst.filepath){ //look for existing file
-                    if x.has_permission(&rqst.user, &Permission::Write){ // check permission
-                        let mut file = match File::create(Path::new(&rqst.filepath)){ // overwrite file
-                            Ok(x) => Ok(x),
-                            Err(..) => Err("Could not create"),
-                        };
-                        if let Ok(ref mut x) = file{
-                            return match x.write_all(&a.buffer()) { // write to file from buffer
-                                Ok(..) => file,
-                                Err(..) => Err("Writing Failed")
-                            }
-                        }
-                        file
+                if let Ok(ref x) = self.find(&request.filepath){ //look for existing file
+                    if x.has_permission(&request.user, &Permission::Write){ // check permission
+                        let mut file = File::create(Path::new(&request.filepath))?;
+                        file.write_all(&a.buffer())?; //write to file from buffer
+                        Ok(Some(file))
                     }
                     else{
-                        Err("You do not have permission to access this file")
+                        Err(Box::new(FileError::PermissionDenied))
                     }
                 }
                 else {
-                    let mut file = match File::create(Path::new(&rqst.filepath)){ // create new file in location
-                        Ok(x) => Ok(x),
-                        Err(..) => Err("Could not create"),
-                    };
-                    if let Ok(ref mut x) = file{
-                        return match x.write_all(&a.buffer()) { // write to file from buffer
-                            Ok(..) => {
-                                self.files.push(FileInfo::new(rqst.filepath.clone(), rqst.user.clone()));
-                                file
-                            },
-                            Err(..) => Err("Writing Failed")
-                        }
-                    }
-                    file
+                    let mut file = File::create(Path::new(&request.filepath))?; // create new file in location
+                    file.write_all(&a.buffer())?; // write to file from buffer
+                    self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
+                    Ok(Some(file))
                 }
             },
             Request::Copy(new_path) => {
-                if let Some(x) = self.find(&rqst.filepath){ // look for existing old file
-                    if x.has_permission(&rqst.user, &Permission::Read){ // check permission on old file
-                        let ofile = match File::open(Path::new(&rqst.filepath)){ // open old file
-                            Ok(x) => Ok(x),
-                            Err(..) => Err("Could not open file to copy"),
-                        };
-                        if let Ok(x) = ofile{
-                            let x = BufReader::new(x); // create buffer to write from old file
-                            if let Some(ref y) = self.find(new_path){ // look for existing new file
-                                if y.has_permission(&rqst.user, &Permission::Write){ // check permission on new file
-                                    let mut nfile = match File::create(Path::new(&new_path)){ // overwrite new file
-                                        Ok(y) => Ok(y),
-                                        Err(..) => Err("Could not create file"),
-                                    };
-                                    if let Ok(ref mut y) = nfile{
-                                        return match y.write_all(&x.buffer()) { // write to new file from old file buffer
-                                            Ok(..) => nfile,
-                                            Err(..) => Err("Writing Failed")
-                                        };
-                                    }
-                                    nfile
-                                }
-                                else{
-                                    Err("Protected file already in target location")
-                                }
+                    if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission on old file
+                        let ofile = BufReader::new(File::open(Path::new(&request.filepath))?); // open old file & create buffer to write from
+                        if let Ok(x) = self.find(new_path){
+                            if x.has_permission(&request.user, &Permission::Write){ // check permission on new file
+                                let mut nfile = File::create(Path::new(&new_path))?; // overwrite new file
+                                nfile.write_all(&ofile.buffer())?;
+                                return Ok(Some(nfile))
                             }
-                            else {
-                                let mut nfile = match File::create(Path::new(&new_path)){ // create file at new location
-                                    Ok(y) => Ok(y),
-                                    Err(..) => Err("Could not create file"),
-                                };
-                                if let Ok(ref mut y) = nfile{
-                                    return match y.write_all(&x.buffer()) { // write to new file from old file buffer
-                                        Ok(..) => {
-                                            self.files.push(FileInfo::new(new_path.clone(), rqst.user.clone()));
-                                            nfile
-                                        },
-                                        Err(..) => Err("Writing Failed")
-                                    };
-                                }
-                                nfile
+                            else{
+                                Err(Box::new(FileError::PermissionDenied))
                             }
                         }
-                        else{
-                            ofile
+                        else {
+                            let mut nfile = File::create(Path::new(&request.filepath))?; // create new file in location
+                            nfile.write_all(&ofile.buffer())?; // write to file from buffer
+                            self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
+                            Ok(Some(nfile))
                         }
                     }
                     else{
-                        Err("You do not have permission to access this file")
+                        Err(Box::new(FileError::PermissionDenied))
                     }
-                }
-                else {
-                    Err("No file to copy")
-                }
             },
             Request::Move(new_path) => {
-                let rqst = FileRqst{ // prep to copy original to new location
-                    rqst_tp: Request::Copy(new_path.to_string()),
-                    user: rqst.user.clone(),
-                    filepath: rqst.filepath.clone(),
+                let request = FileRequest{ // prep to copy original to new location
+                    request_type: Request::Copy(new_path.to_string()),
+                    user: request.user.clone(),
+                    filepath: request.filepath.clone(),
                 };
-                if let Ok(..) = self.file_rqst(&rqst){ // copy original to new location
-                        let rqst = FileRqst{
-                            rqst_tp: Request::Del,
-                            user: rqst.user.clone(),
-                            filepath: rqst.filepath.clone(),
-                        };
-                        let res = self.file_rqst(&rqst); // delete orignal on successful copy
-                        res
-                    }
-                else{
-                    Err("Move failed")
-                }
+                self.file_request(&request)?; // copy original to new location
+                let request = FileRequest{
+                    request_type: Request::Del,
+                    user: request.user.clone(),
+                    filepath: request.filepath.clone(),
+                };
+                self.file_request(&request) // delete orignal on successful copy
             }
             Request::Del => {
-                if let Some(ref x) = self.find(&rqst.filepath){ // look for file
-                    if x.has_permission(&rqst.user, &Permission::Write){ // check permission
-                        match fs::remove_file(rqst.filepath.clone()).map_err(|e| -> String { format!("{:?}", e.kind()) }){ // remove file
-                            Ok(..) => {
-                                //self.files.swap_remove(); // need to get index somehow
-                                Err("File deleted")
-                            },
-                            Err(..) => Err("File could not be deleted"),
-                        }
-                    }
-                    else{
-                        Err("You do not have permission to access this file")
-                    }
+                if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Write){ // check permission
+                    fs::remove_file(request.filepath.clone())?; // remove file
+                    self.files.swap_remove(self.files.iter().position(|x| x.filepath == request.filepath).unwrap()); // remove fileinfo
+                    Ok(None)
                 }
                 else{
-                    Err("No file to delete")
+                    Err(Box::new(FileError::PermissionDenied))
                 }
                 
             },
             Request::MakeDir => {
-                match fs::create_dir_all(rqst.filepath.clone()).map_err(|e| -> String { format!("{:?}", e.kind()) }){ // add directory
-                    Ok(..) => Err("Directory added"),
-                    Err(..) => Err("Directory could not be added"),
-                }
+                fs::create_dir_all(request.filepath.clone())?; // add directory
+                Ok(None)
             },
             Request::DelDir => {
-                match fs::remove_dir_all(rqst.filepath.clone()).map_err(|e| -> String { format!("{:?}", e.kind()) }){ // remove directory
-                    Ok(..) => Err("directory and contents removed"),
-                    Err(..) => Err("directory could not be removed"),
-                }
+                fs::remove_dir_all(request.filepath.clone())?; // remove directory
+                Ok(None)
             },
         }
     }
