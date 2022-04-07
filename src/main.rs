@@ -13,6 +13,9 @@ use std::fs::{self, ReadDir};
 use std::path::Path;
 use std::str;
 use std::error;
+use std::any::TypeId;
+use std::boxed::Box;
+use std::any::Any;
 
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
@@ -103,29 +106,9 @@ fn main() {
         if cmd_vec[0] == constants::QUIT {
             println!("exiting the server...");
             break;
-        } else if cmd_vec[0] == constants::PRINT_DIR {
-            let dir_path = cmd_vec[1];
-            println!("dir specified: {}", dir_path);
-            let paths = handle_print_dir(&dir_path);
-            let mut result_str = String::from("");
-            for path in paths { 
-                result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
-            }
-            codec.send_message(&result_str)?;
+        } else if cmd_vec[0] == 
         } 
-        else if cmd_vec[0] == constants::PRINT_HIDDEN {
-            let vec = handle_print_hidden();
-            let mut result_str = String::from("");
-
-            for e in vec { 
-                //result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
-                if e.file_name() != "." && e.file_name() != ".git" && e.file_name() != ".workflows" 
-                    && e.file_name() != ".gitignore" {
-                    result_str = result_str + &format!("{:?}", e.file_name()) + " ";
-                } 
-            }
-            codec.send_message(&result_str)?;
-        }
+        else if cmd_vec[0] == 
     }
 
     Ok(())
@@ -134,17 +117,52 @@ fn main() {
 
 // handle individual clients
 fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn error::Error>> {
-    println!("Connection to {} Successful!", &stream.peer_addr()?);
+    let other = &stream.peer_addr()?; // store other for later reference
     let mut codec = LinesCodec::new(stream)?;
-    let quit = String::from("quit");
+    let mut msg: String = codec.read_message()?; // Respond to initial handshake
+    codec.send_message(&msg)?;
+    println!("Initial handshake with {} was successful !!", other);
     loop {
-        match codec.read_message(){ // command
-            Ok(cmd) if cmd == quit => break, // end conncetion
+        match codec.read_message() { // command
+            Ok(cmd) if &cmd[..] == constants::QUIT => break, // end conncetion
             Ok(cmd) => { // run command from file_sys
                 codec.set_timeout(5);
-                match Arc::<Files>::get_mut(&mut db).unwrap().file_request(&gen_request(pregen_request(cmd.to_string(), codec.read_file().ok())?)?)?{
-                    Some(file) => codec.send_file(&file)?,
-                    None => codec.send_message("success!")?,
+                match pregen_request(cmd.to_string(), codec.read_file().ok()){
+                    Ok(x) => match Arc::<Files>::get_mut(&mut db).unwrap().file_request(&gen_request(x)?) {
+                        Ok(Some(file)) => codec.send_file(&file)?,
+                        Ok(None) => codec.send_message("success!")?,
+                        Err(e) if Box::<dyn error::Error>::type_id(&e) == TypeId::of::<FileError>() => println!("Error running command for {}: {}", other, e),
+                        Err(e) => return Err(e),
+                    },
+                    Err(_) => {
+                        let cmd_vec: Vec<&str> = cmd.split(" ").collect();
+                        match cmd_vec[0] {
+                            constants::PRINT_DIR => {
+                                let dir_path = cmd_vec[1];
+                                println!("dir specified: {}", dir_path);
+                                let paths = handle_print_dir(&dir_path);
+                                let mut result_str = String::from("");
+                                for path in paths { 
+                                    result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
+                                    codec.send_message(&result_str)?;
+                                }
+                            },
+                            constants::PRINT_HIDDEN => {
+                                let vec = handle_print_hidden();
+                                let mut result_str = String::from("");
+                    
+                                for e in vec { 
+                                    //result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
+                                    if e.file_name() != "." && e.file_name() != ".git" && e.file_name() != ".workflows" 
+                                        && e.file_name() != ".gitignore" {
+                                        result_str = result_str + &format!("{:?}", e.file_name()) + " ";
+                                    } 
+                                }
+                                codec.send_message(&result_str)?;
+                            },
+                            _ => codec.send_message("Invalid Command")?,
+                        }
+                    },
                 }
                 codec.set_timeout(0);
             },
@@ -153,6 +171,7 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
             }
         }
     }
+    println!("disconnecting from {}", other);
     Ok(())
 }
 
