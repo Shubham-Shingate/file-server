@@ -101,7 +101,7 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
             Ok(cmd) if &cmd[..] == constants::QUIT => break, // end conncetion
             Ok(cmd) => { // run command from file_sys
                 codec.set_timeout(5);
-                match pregen_request(cmd.to_string(), codec.read_file().ok()){
+                match pregen_request(other, cmd.to_string(), codec.read_file().ok()){
                     Ok(x) => match Arc::<Files>::get_mut(&mut db).unwrap().file_request(&gen_request(x)?) {
                         Ok(Some(file)) => codec.send_file(&file)?,
                         Ok(None) => codec.send_message("success!")?,
@@ -125,7 +125,7 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                                 let vec = handle_print_hidden();
                                 let mut result_str = String::from("");
                     
-                                for e in vec { 
+                                for e in vec {
                                     //result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
                                     if e.file_name() != "." && e.file_name() != ".git" && e.file_name() != ".workflows" 
                                         && e.file_name() != ".gitignore" {
@@ -150,15 +150,13 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
 }
 
 // convert single string to elems for file request
-fn pregen_request(s: String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), FileError>{
+fn pregen_request(u: &std::net::SocketAddr, s: String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), FileError>{
     let mut s = s.split_whitespace();
-    if let Some(u) = s.next(){ // user
-        if let Some(c) = s.next(){ // command
-            if let Some(p) = s.next(){ // path
-                match s.next(){ // path2
-                    Some(p2) => return Ok((u.to_string(), c.to_string(), p.to_string(), Some(p2.to_string()), a)),
-                    None => return Ok((u.to_string(), c.to_string(), p.to_string(), None, a)),
-                }
+    if let Some(c) = s.next(){ // command
+        if let Some(p) = s.next(){ // path
+            match s.next(){ // path2
+                Some(p2) => return Ok((u.to_string(), c.to_string(), p.to_string(), Some(p2.to_string()), a)),
+                None => return Ok((u.to_string(), c.to_string(), p.to_string(), None, a)),
             }
         }
     }
