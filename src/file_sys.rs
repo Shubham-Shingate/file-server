@@ -170,7 +170,13 @@ impl Files{
                     user: request.user.clone(),
                     filepath: request.filepath.clone(),
                 };
-                self.file_request(&request) // delete orignal on successful copy
+                self.file_request(&request); // delete orignal on successful copy
+                let request = FileRequest{ // prep to return file
+                    request_type: Request::Read,
+                    user: request.user.clone(),
+                    filepath: request.filepath.clone(),
+                };
+                self.file_request(&request) // return file
             }
             Request::Del => {
                 if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Write){ // check permission

@@ -92,22 +92,29 @@ fn main() {
 // handle individual clients
 fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn error::Error>> {
     let other = &stream.peer_addr()?; // store other for later reference
+    let mut db = db;
     let mut codec = LinesCodec::new(stream)?;
     let mut msg: String = codec.read_message()?; // Respond to initial handshake
     codec.send_message(&msg)?;
     println!("Initial handshake with {} was successful !!", other);
     loop {
         match codec.read_message() { // command
-            Ok(cmd) if &cmd[..] == constants::QUIT => break, // end conncetion
+            Ok(cmd) if &cmd == constants::QUIT => break, // end conncetion
             Ok(cmd) => { // run command from file_sys
                 codec.set_timeout(5);
                 match pregen_request(other, &cmd, codec.read_file().ok()){
-                    Ok(x) => match Arc::<Files>::get_mut(&mut db).unwrap().file_request(&gen_request(x)?) {
+                    Ok(x) => {
+                        let mut nodb = Files::new();
+                        match Arc::<Files>::get_mut(&mut db).unwrap_or_else(|| &mut nodb).file_request(&gen_request(x)?) {
                         Ok(Some(file)) => codec.send_file(&file)?,
                         Ok(None) => codec.send_message("success!")?,
-                        Err(e) if Box::<dyn error::Error>::type_id(&e) == TypeId::of::<FileError>() => println!("Error running command for {}: {}", other, e),
+                        Err(e) if Box::<dyn error::Error>::type_id(&e) == TypeId::of::<FileError>() => {
+                            println!("Error running command for {}: {}", other, e);
+                            let e = format!("{}", e);
+                            codec.send_message(&e)?;
+                        },
                         Err(e) => return Err(e),
-                    },
+                    }},
                     Err(_) => {
                         let cmd_vec: Vec<&str> = cmd.split(" ").collect();
                         match cmd_vec[0] {
