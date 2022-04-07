@@ -89,32 +89,6 @@ fn main() {
     drop(listener); // close the socket server
 }
 
-// ---------- OLD START ---------- //
-/*fn handle_client_old(mut stream: TcpStream) -> io::Result<()> {
-     let mut codec = LinesCodec::new(stream)?;
-
-    // Respond to initial handshake
-    let mut msg: String = codec.read_message()?;
-    codec.send_message(&msg)?;
-    println!("Initial handshake was successful !!");
-
-    loop {
-        msg = codec.read_message()?;
-        // TODO check that         
-        let cmd_vec: Vec<&str> = msg.split(" ").collect();
-
-        if cmd_vec[0] == constants::QUIT {
-            println!("exiting the server...");
-            break;
-        } else if cmd_vec[0] == 
-        } 
-        else if cmd_vec[0] == 
-    }
-
-    Ok(())
-}*/
-// ---------- OLD END ---------- //
-
 // handle individual clients
 fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn error::Error>> {
     let other = &stream.peer_addr()?; // store other for later reference
