@@ -4,19 +4,42 @@ mod lib;
 
 use file_sys::Files;
 use lib::LinesCodec;
+
 use std::fs::ReadDir;
-use std::fs::{self, DirEntry};
+use std::fs::{self};
 use std::io;
-use std::io::{Read, Write};
-use std::net::{Shutdown, TcpListener, TcpStream};
-use std::path::Path;
+use std::net::{TcpListener, TcpStream};
 use std::str;
 use std::thread;
+use walkdir::DirEntry as WalkDirEntry;
+use walkdir::WalkDir;
+
 
 fn handle_print_dir(dir_path: &str) -> ReadDir {
     //let path = Path::new(directory_name)
     let paths = fs::read_dir(dir_path).unwrap();    
     return paths;
+}
+
+fn is_hidden(entry: &WalkDirEntry) -> bool {
+    entry.file_name()
+         .to_str()
+         .map(|s| s.starts_with("."))
+         .unwrap_or(false)
+}
+
+fn handle_print_hidden() -> Vec<walkdir::DirEntry> {
+    // walk current directory and print all hidden (.) directories and files
+    let paths = WalkDir::new(".")
+        .into_iter()
+        .filter_entry(|e| is_hidden(e))
+        .filter_map(|v| v.ok());
+        //.for_each(|x| println!("{}", x.path().display())) // TODO send print to file-client
+    let mut vec: Vec<walkdir::DirEntry> = Vec::new();
+    for e in paths {
+        vec.push(e);        
+    }
+    return vec;   
 }
 
 fn handle_client(stream: TcpStream) -> io::Result<()> {
@@ -41,6 +64,18 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
             let mut result_str = String::from("");
             for path in paths { 
                 result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
+            }
+            codec.send_message(&result_str)?;
+        } else if cmd_vec[0] == constants::PRINT_HIDDEN {
+            let vec = handle_print_hidden();
+            let mut result_str = String::from("");
+
+            for e in vec { 
+                //result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
+                if e.file_name() != "." && e.file_name() != ".git" && e.file_name() != ".workflows" 
+                    && e.file_name() != ".gitignore" {
+                    result_str = result_str + &format!("{:?}", e.file_name()) + " ";
+                } 
             }
             codec.send_message(&result_str)?;
         } else {
