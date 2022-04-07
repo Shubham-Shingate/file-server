@@ -101,7 +101,7 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
             Ok(cmd) if &cmd[..] == constants::QUIT => break, // end conncetion
             Ok(cmd) => { // run command from file_sys
                 codec.set_timeout(5);
-                match pregen_request(other, cmd.to_string(), codec.read_file().ok()){
+                match pregen_request(other, &cmd, codec.read_file().ok()){
                     Ok(x) => match Arc::<Files>::get_mut(&mut db).unwrap().file_request(&gen_request(x)?) {
                         Ok(Some(file)) => codec.send_file(&file)?,
                         Ok(None) => codec.send_message("success!")?,
@@ -150,7 +150,7 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
 }
 
 // convert single string to elems for file request
-fn pregen_request(u: &std::net::SocketAddr, s: String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), FileError>{
+fn pregen_request(u: &std::net::SocketAddr, s: &String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), FileError>{
     let mut s = s.split_whitespace();
     if let Some(c) = s.next(){ // command
         if let Some(p) = s.next(){ // path
