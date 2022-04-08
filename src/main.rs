@@ -128,12 +128,11 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                                 match Arc::<Files>::make_mut(&mut db).file_request(&x) {
                                     Ok(Some(mut file)) => codec.send_file(&mut file)?,
                                     Ok(None) => codec.send_message("success!")?,
-                                    Err(e) if Box::<dyn error::Error>::type_id(&e) == TypeId::of::<FileError>() => {
+                                    Err(e) => {
                                         println!("Error running command for {}: {}", other, e);
                                         let e = format!("{}", e);
                                         codec.send_message(&e)?;
                                     },
-                                    Err(e) => return Err(e),
                                 }
                             },
                             Err(e) => {
