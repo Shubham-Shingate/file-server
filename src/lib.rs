@@ -45,7 +45,7 @@ impl LinesCodec {
 
     // Write the given file (appending a newline) to the TcpStream
     pub fn send_file(&mut self, file: &mut File) -> io::Result<()> {
-        let writer = self.writer.get_mut();
+        let mut writer = self.writer.get_mut();
         io::copy(file, writer)?;
         Ok(())
     }
