@@ -108,12 +108,12 @@ impl Files{
     pub fn file_request(&mut self, request: &FileRequest) -> std::result::Result<Option<File>, Box<dyn error::Error>>{ // do file request
         match &request.request_type {
             Request::Read => {
-                if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission
+                //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission
                     Ok(Some(File::open(Path::new(&request.filepath))?))
-                }
-                else{
-                    Err(Box::new(FileError::PermissionDenied))
-                }
+                //}
+                //else{
+                //    Err(Box::new(FileError::PermissionDenied))
+                //}
             },
             Request::Write(from) => {
                 let mut from = &*from.clone();
@@ -136,7 +136,7 @@ impl Files{
             },
             Request::Copy(new_path) => {
                     //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission on old file
-                        let file = File::open(Path::new(&request.filepath))?; // open old file to write from
+                        let mut file = OpenOptions::new().read(true).write(true).create(false).open(Path::new(&request.filepath))?;
                         let request = FileRequest{ // prep to copy original to new location
                             request_type: Request::Write(file),
                             user: request.user.clone(),
