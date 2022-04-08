@@ -43,23 +43,18 @@ impl LinesCodec {
         Ok(line)
     }
 
-    /// Write the given file (appending a newline) to the TcpStream
-    pub fn send_file(&mut self, file: &File) -> io::Result<()> {
-        let mut file = BufReader::new(file);
-        let mut s = String::new();
-        file.read_to_string(&mut s);
-        let mut writer = BufWriter::new(self.writer.get_mut());
-        writer.write(&s.as_bytes())?;
+    // Write the given file (appending a newline) to the TcpStream
+    pub fn send_file(&mut self, file: &mut File) -> io::Result<()> {
+        let mut writer = self.writer.get_mut();
+        io::copy(file, writer)?;
         writer.flush()?;
         Ok(())
     }
 
-    /// Read a received file from the TcpStream
+    // Read a received file from the TcpStream
     pub fn read_file(&mut self) -> io::Result<File> {
-        let mut file = BufWriter::new(tempfile()?);
-        let mut s = String::new();
-        self.reader.read_to_string(&mut s)?;
-        file.write_all(&s.as_bytes());
-        Ok(file.into_inner()?)
+        let mut file = tempfile()?;
+        io::copy(&mut self.reader, &mut file);
+        Ok(file)
     }
 }

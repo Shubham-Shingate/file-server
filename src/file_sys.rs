@@ -116,11 +116,11 @@ impl Files{
                     }
             },
             Request::Write(a) => {
-                let a = BufReader::new(a); // make buffer to write from
+                let mut a = &*a.clone();
                 if let Ok(ref x) = self.find(&request.filepath){ //look for existing file
                     if x.has_permission(&request.user, &Permission::Write){ // check permission
                         let mut file = File::create(Path::new(&request.filepath))?;
-                        file.write_all(&a.buffer())?; //write to file from buffer
+                        copy(&mut a, &mut file)?;
                         Ok(Some(file))
                     }
                     else{
@@ -129,7 +129,7 @@ impl Files{
                 }
                 else {
                     let mut file = File::create(Path::new(&request.filepath))?; // create new file in location
-                    file.write_all(&a.buffer())?; // write to file from buffer
+                    copy(&mut a, &mut file)?;
                     self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
                     Ok(Some(file))
                 }
@@ -170,7 +170,7 @@ impl Files{
                     user: request.user.clone(),
                     filepath: request.filepath.clone(),
                 };
-                self.file_request(&request); // delete orignal on successful copy
+                self.file_request(&request)?; // delete orignal on successful copy
                 let request = FileRequest{ // prep to return file
                     request_type: Request::Read,
                     user: request.user.clone(),

@@ -10,7 +10,7 @@ use std::net::{TcpListener, TcpStream};
 use std::fs::File;
 use std::sync::Arc;
 use std::fs::{self, ReadDir};
-use std::path::Path;
+//use std::path::Path;
 use std::str;
 use std::error;
 use std::any::TypeId;
@@ -20,7 +20,7 @@ use std::any::Any;
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
 use walkdir::WalkDir;
-use colored::Colorize;
+//use colored::Colorize;
 
  // returns true if file or directory is hidden; false otherwise
 fn is_hidden(entry: &WalkDirEntry) -> bool {
@@ -66,10 +66,22 @@ fn handle_print_hidden() -> Vec<walkdir::DirEntry> {
 }
 
 fn main() {
-    let db = Arc::new(Files::new()); // init database
+    let mut db = Arc::new(Files::new()); // init database
+    if let Some(_) = Arc::<Files>::get_mut(&mut db){
+        println!("Database initialization successful");
+    }
+    else{
+        println!("Database initialization failed");
+    }
     let listener = TcpListener::bind("localhost:3333").unwrap();
     // accept connections and process them, spawning a new thread for each one
     for stream in listener.incoming() {
+        /*let mut cmd = String::new(); // add way to shutdown server
+        io::stdin().read_line(&mut cmd).unwrap();
+        cmd = cmd.trim().to_owned();
+        if &cmd == constants::QUIT {
+            break;
+        }*/
         match stream {
             Ok(stream) => {
                 println!("New connection: {}", stream.peer_addr().unwrap());
@@ -82,7 +94,7 @@ fn main() {
                 });
             }
             Err(e) => {
-                println!("Error: {}", e); // connection failed
+                println!("Failed connection: {}", e); // connection failed
             }
         }
     }
@@ -92,11 +104,18 @@ fn main() {
 // handle individual clients
 fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn error::Error>> {
     let other = &stream.peer_addr()?; // store other for later reference
-    let mut db = db;
     let mut codec = LinesCodec::new(stream)?;
-    let mut msg: String = codec.read_message()?; // Respond to initial handshake
+    let msg: String = codec.read_message()?; // Respond to initial handshake
     codec.send_message(&msg)?;
     println!("Initial handshake with {} was successful !!", other);
+    if let Some(_) = Arc::<Files>::get_mut(&mut db){ // Check database connection
+        println!("Database connection for {} successful", other);
+        codec.send_message("Connected to database successfully")?;
+    }
+    else{
+        println!("Database connection for {} failed", other);
+        codec.send_message("Could not connect to database")?;
+    }
     loop {
         match codec.read_message() { // command
             Ok(cmd) if &cmd == constants::QUIT => break, // end conncetion
@@ -104,17 +123,26 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                 codec.set_timeout(5);
                 match pregen_request(other, &cmd, codec.read_file().ok()){
                     Ok(x) => {
-                        let mut nodb = Files::new();
-                        match Arc::<Files>::get_mut(&mut db).unwrap_or_else(|| &mut nodb).file_request(&gen_request(x)?) {
-                        Ok(Some(file)) => codec.send_file(&file)?,
-                        Ok(None) => codec.send_message("success!")?,
-                        Err(e) if Box::<dyn error::Error>::type_id(&e) == TypeId::of::<FileError>() => {
-                            println!("Error running command for {}: {}", other, e);
-                            let e = format!("{}", e);
-                            codec.send_message(&e)?;
-                        },
-                        Err(e) => return Err(e),
-                    }},
+                        match gen_request(x){
+                            Ok(x) =>{
+                                match Arc::<Files>::make_mut(&mut db).file_request(&x) {
+                                    Ok(Some(mut file)) => codec.send_file(&mut file)?,
+                                    Ok(None) => codec.send_message("success!")?,
+                                    Err(e) if Box::<dyn error::Error>::type_id(&e) == TypeId::of::<FileError>() => {
+                                        println!("Error running command for {}: {}", other, e);
+                                        let e = format!("{}", e);
+                                        codec.send_message(&e)?;
+                                    },
+                                    Err(e) => return Err(e),
+                                }
+                            },
+                            Err(e) => {
+                                println!("Error running command for {}: {}", other, e);
+                                let e = format!("{}", e);
+                                codec.send_message(&e)?;
+                            },
+                        }
+                    },
                     Err(_) => {
                         let cmd_vec: Vec<&str> = cmd.split(" ").collect();
                         match cmd_vec[0] {
