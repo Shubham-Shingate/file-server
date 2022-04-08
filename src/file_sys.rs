@@ -189,4 +189,30 @@ impl Files{
             },
         }
     }
+    pub fn search(&self, term: &str) -> String{
+        let p = fs::read_dir("db").unwrap();
+        let mut r = String::new();
+        for i in p {
+            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) {
+                r += &format!("{} ", i.unwrap().path().display());
+            } 
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") {
+                r += &self.subsearch(&format!("{}", i.unwrap().path().display()), term);
+            }
+        }
+        r
+    }
+    fn subsearch(&self, start: &str, term: &str) -> String {
+        let p = fs::read_dir(start).unwrap();
+        let mut r = String::new();
+        for i in p {
+            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) {
+                r += &format!("{} ", i.unwrap().path().display());
+            } 
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") {
+                self.subsearch(&format!("{}", i.unwrap().path().display()), term);
+            }
+        }
+        r
+    }
 }

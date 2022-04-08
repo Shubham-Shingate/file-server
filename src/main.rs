@@ -166,6 +166,9 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                                 }
                                 codec.send_message(&result_str)?;
                             },
+                            constants::SEARCH => {
+                                codec.send_message(&db.search(&cmd_vec[1]));
+                            }
                             _ => codec.send_message("Invalid Command")?,
                         }
                     },
@@ -185,10 +188,12 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
 fn pregen_request(u: &std::net::SocketAddr, s: &String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), FileError>{
     let mut s = s.split_whitespace();
     if let Some(c) = s.next(){ // command
-        if let Some(p) = s.next(){ // path
-            match s.next(){ // path2
-                Some(p2) => return Ok((u.to_string(), c.to_string(), p.to_string(), Some(p2.to_string()), a)),
-                None => return Ok((u.to_string(), c.to_string(), p.to_string(), None, a)),
+        if c != constants::SEARCH && c != constants::PRINT_DIR {
+            if let Some(p) = s.next(){ // path
+                match s.next(){ // path2
+                    Some(p2) => return Ok((u.to_string(), c.to_string(), p.to_string(), Some(p2.to_string()), a)),
+                    None => return Ok((u.to_string(), c.to_string(), p.to_string(), None, a)),
+                }
             }
         }
     }
