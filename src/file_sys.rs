@@ -109,11 +109,11 @@ impl Files{
         match &request.request_type {
             Request::Read => {
                 if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission
-                        Ok(Some(File::open(Path::new(&request.filepath))?))
-                    }
-                    else{
-                        Err(Box::new(FileError::PermissionDenied))
-                    }
+                    Ok(Some(File::open(Path::new(&request.filepath))?))
+                }
+                else{
+                    Err(Box::new(FileError::PermissionDenied))
+                }
             },
             Request::Write(a) => {
                 let mut a = &*a.clone();
@@ -136,11 +136,11 @@ impl Files{
             },
             Request::Copy(new_path) => {
                     if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission on old file
-                        let ofile = BufReader::new(File::open(Path::new(&request.filepath))?); // open old file & create buffer to write from
+                        let mut ofile = File::open(Path::new(&request.filepath))?; // open old file to write from
                         if let Ok(x) = self.find(new_path){
                             if x.has_permission(&request.user, &Permission::Write){ // check permission on new file
                                 let mut nfile = File::create(Path::new(&new_path))?; // overwrite new file
-                                nfile.write_all(&ofile.buffer())?;
+                                copy(&mut ofile, &mut nfile);
                                 return Ok(Some(nfile))
                             }
                             else{
@@ -149,7 +149,7 @@ impl Files{
                         }
                         else {
                             let mut nfile = File::create(Path::new(&request.filepath))?; // create new file in location
-                            nfile.write_all(&ofile.buffer())?; // write to file from buffer
+                            copy(&mut ofile, &mut nfile);
                             self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
                             Ok(Some(nfile))
                         }
