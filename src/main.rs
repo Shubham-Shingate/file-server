@@ -150,7 +150,7 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                                 let dir_path = cmd_vec[1];
                                 println!("dir specified: {}", dir_path);
                                 let paths = handle_print_dir(&dir_path);
-                                let mut result_str = String::from("");
+                                let mut result_str = String::new();
                                 for path in paths { 
                                     result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";
                                     codec.send_message(&result_str)?;
@@ -158,7 +158,7 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                             },
                             constants::PRINT_HIDDEN => {
                                 let vec = handle_print_hidden();
-                                let mut result_str = String::from("");
+                                let mut result_str = String::new();
                     
                                 for e in vec {
                                     //result_str = result_str + &format!("{}", path.unwrap().path().display()) + "  ";

@@ -115,48 +115,38 @@ impl Files{
                     Err(Box::new(FileError::PermissionDenied))
                 }
             },
-            Request::Write(a) => {
-                let mut a = &*a.clone();
-                if let Ok(ref x) = self.find(&request.filepath){ //look for existing file
-                    if x.has_permission(&request.user, &Permission::Write){ // check permission
+            Request::Write(from) => {
+                let mut from = &*from.clone();
+                if let Ok(ref file) = self.find(&request.filepath){ //look for existing file
+                    //if file.has_permission(&request.user, &Permission::Write){ // check permission
                         let mut file = File::create(Path::new(&request.filepath))?;
-                        copy(&mut a, &mut file)?;
+                        copy(&mut from, &mut file)?;
                         Ok(Some(file))
-                    }
-                    else{
-                        Err(Box::new(FileError::PermissionDenied))
-                    }
+                    //}
+                    //else{
+                    //    Err(Box::new(FileError::PermissionDenied))
+                    //}
                 }
                 else {
                     let mut file = File::create(Path::new(&request.filepath))?; // create new file in location
-                    copy(&mut a, &mut file)?;
+                    copy(&mut from, &mut file)?;
                     self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
                     Ok(Some(file))
                 }
             },
             Request::Copy(new_path) => {
-                    if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission on old file
-                        let mut ofile = File::open(Path::new(&request.filepath))?; // open old file to write from
-                        if let Ok(x) = self.find(new_path){
-                            if x.has_permission(&request.user, &Permission::Write){ // check permission on new file
-                                let mut nfile = File::create(Path::new(&new_path))?; // overwrite new file
-                                copy(&mut ofile, &mut nfile);
-                                return Ok(Some(nfile))
-                            }
-                            else{
-                                Err(Box::new(FileError::PermissionDenied))
-                            }
-                        }
-                        else {
-                            let mut nfile = File::create(Path::new(&request.filepath))?; // create new file in location
-                            copy(&mut ofile, &mut nfile);
-                            self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
-                            Ok(Some(nfile))
-                        }
-                    }
-                    else{
-                        Err(Box::new(FileError::PermissionDenied))
-                    }
+                    //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission on old file
+                        let mut file = File::open(Path::new(&request.filepath))?; // open old file to write from
+                        let request = FileRequest{ // prep to copy original to new location
+                            request_type: Request::Write(file),
+                            user: request.user.clone(),
+                            filepath: request.filepath.clone(),
+                        };
+                        self.file_request(&request) // copy original to new location
+                    //}
+                    //else{
+                    //    Err(Box::new(FileError::PermissionDenied))
+                    //}
             },
             Request::Move(new_path) => {
                 let request = FileRequest{ // prep to copy original to new location
@@ -179,14 +169,14 @@ impl Files{
                 self.file_request(&request) // return file
             }
             Request::Del => {
-                if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Write){ // check permission
+                //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Write){ // check permission
                     fs::remove_file(request.filepath.clone())?; // remove file
                     self.files.swap_remove(self.files.iter().position(|x| x.filepath == request.filepath).unwrap()); // remove fileinfo
                     Ok(None)
-                }
-                else{
-                    Err(Box::new(FileError::PermissionDenied))
-                }
+                //}
+                //else{
+                //    Err(Box::new(FileError::PermissionDenied))
+                //}
                 
             },
             Request::MakeDir => {
