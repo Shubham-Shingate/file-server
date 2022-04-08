@@ -1,4 +1,4 @@
-use std::io::{self, BufRead, BufReader, BufWriter, LineWriter, Write, Read};
+use std::io::{self, BufRead, BufReader, LineWriter, Write};
 use std::net::TcpStream;
 use std::time::Duration;
 use std::fs::File;
@@ -45,16 +45,15 @@ impl LinesCodec {
 
     // Write the given file (appending a newline) to the TcpStream
     pub fn send_file(&mut self, file: &mut File) -> io::Result<()> {
-        let mut writer = self.writer.get_mut();
+        let writer = self.writer.get_mut();
         io::copy(file, writer)?;
-        writer.flush()?;
         Ok(())
     }
 
     // Read a received file from the TcpStream
     pub fn read_file(&mut self) -> io::Result<File> {
         let mut file = tempfile()?;
-        io::copy(&mut self.reader, &mut file);
+        io::copy(&mut self.reader, &mut file)?;
         Ok(file)
     }
 }

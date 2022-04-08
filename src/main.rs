@@ -13,9 +13,7 @@ use std::fs::{self, ReadDir};
 //use std::path::Path;
 use std::str;
 use std::error;
-use std::any::TypeId;
 use std::boxed::Box;
-use std::any::Any;
 
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
@@ -32,7 +30,7 @@ fn is_hidden(entry: &WalkDirEntry) -> bool {
 
 
 fn handle_print_dir(dir_path: &str) -> ReadDir {
-    /// TODO check that directory exists ///
+    // TODO check that directory exists //
 
     let paths = fs::read_dir(dir_path).unwrap();    
     return paths;

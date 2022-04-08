@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::error;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::*;
 use std::path::Path;
 use std::fs;
@@ -117,9 +117,9 @@ impl Files{
             },
             Request::Write(from) => {
                 let mut from = &*from.clone();
-                if let Ok(ref file) = self.find(&request.filepath){ //look for existing file
+                if let Ok(ref _file) = self.find(&request.filepath){ //look for existing file
                     //if file.has_permission(&request.user, &Permission::Write){ // check permission
-                        let mut file = File::create(Path::new(&request.filepath))?;
+                        let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&request.filepath))?;
                         copy(&mut from, &mut file)?;
                         Ok(Some(file))
                     //}
@@ -128,7 +128,7 @@ impl Files{
                     //}
                 }
                 else {
-                    let mut file = File::create(Path::new(&request.filepath))?; // create new file in location
+                    let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&request.filepath))?;
                     copy(&mut from, &mut file)?;
                     self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
                     Ok(Some(file))
@@ -136,11 +136,11 @@ impl Files{
             },
             Request::Copy(new_path) => {
                     //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission on old file
-                        let mut file = File::open(Path::new(&request.filepath))?; // open old file to write from
+                        let file = File::open(Path::new(&request.filepath))?; // open old file to write from
                         let request = FileRequest{ // prep to copy original to new location
                             request_type: Request::Write(file),
                             user: request.user.clone(),
-                            filepath: request.filepath.clone(),
+                            filepath: new_path.to_owned(),
                         };
                         self.file_request(&request) // copy original to new location
                     //}
