@@ -1,9 +1,10 @@
 mod constants;
 mod file_sys;
-mod lib;
+mod util;
 
+use file_server::PgPersistance;
 use file_sys::Files;
-use lib::LinesCodec;
+use util::LinesCodec;
 
 use std::fs::ReadDir;
 use std::fs::{self};
@@ -43,6 +44,11 @@ fn handle_print_hidden() -> Vec<walkdir::DirEntry> {
 }
 
 fn handle_client(stream: TcpStream) -> io::Result<()> {
+    //Establish a DB Connection
+    let conn = PgPersistance::get_connection();
+    let all_accounts = PgPersistance::find_all(&conn);
+    
+    
     let mut codec = LinesCodec::new(stream)?;
 
     // Respond to initial handshake
