@@ -2,7 +2,7 @@ mod file_sys;
 mod lib;
 mod constants;
 
-use file_sys::{Files, FileError};
+use file_sys::{Files, ResponseType};
 use lib::LinesCodec;
 use std::io;
 use std::thread;
@@ -119,27 +119,9 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
             Ok(cmd) if &cmd == constants::QUIT => break, // end conncetion
             Ok(cmd) => { // run command from file_sys
                 codec.set_timeout(5);
-                match pregen_request(other, &cmd, codec.read_file().ok()){
-                    Ok(x) => {
-                        match gen_request(x){
-                            Ok(x) =>{
-                                match Arc::<Files>::make_mut(&mut db).file_request(&x) {
-                                    Ok(Some(mut file)) => codec.send_file(&mut file)?,
-                                    Ok(None) => codec.send_message("success!")?,
-                                    Err(e) => {
-                                        println!("Error running command for {}: {}", other, e);
-                                        let e = format!("{}", e);
-                                        codec.send_message(&e)?;
-                                    },
-                                }
-                            },
-                            Err(e) => {
-                                println!("Error running command for {}: {}", other, e);
-                                let e = format!("{}", e);
-                                codec.send_message(&e)?;
-                            },
-                        }
-                    },
+                match Arc::<Files>::make_mut(&mut db).call(&cmd, codec.read_file().ok()) {
+                    Ok(ResponseType::File(mut f)) => codec.send_file(&mut f)?,
+                    Ok(ResponseType::String(s)) => codec.send_message(&s)?,
                     Err(_) => {
                         let cmd_vec: Vec<&str> = cmd.split(" ").collect();
                         match cmd_vec[0] {
@@ -166,9 +148,9 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
                                 }
                                 codec.send_message(&result_str)?;
                             },
-                            constants::SEARCH => {
+                            /*constants::SEARCH => {
                                 codec.send_message(&db.search(&cmd_vec[1]));
-                            }
+                            }*/
                             _ => codec.send_message("Invalid Command")?,
                         }
                     },
@@ -182,84 +164,4 @@ fn handle_client(stream: TcpStream, mut db: Arc<Files>) -> Result<(), Box<dyn er
     }
     println!("disconnecting from {}", other);
     Ok(())
-}
-
-// convert single string to elems for file request
-fn pregen_request(u: &std::net::SocketAddr, s: &String, a: Option<File>) -> Result<(String, String, String, Option<String>, Option<File>), FileError>{
-    let mut s = s.split_whitespace();
-    if let Some(c) = s.next(){ // command
-        if c != constants::SEARCH && c != constants::PRINT_DIR {
-            if let Some(p) = s.next(){ // path
-                match s.next(){ // path2
-                    Some(p2) => return Ok((u.to_string(), c.to_string(), p.to_string(), Some(p2.to_string()), a)),
-                    None => return Ok((u.to_string(), c.to_string(), p.to_string(), None, a)),
-                }
-            }
-        }
-    }
-    Err(FileError::BadCommand)
-}
-
-// generate file request to call from db
-fn gen_request((user, cmd, path, path2, attachment): (String, String, String, Option<String>, Option<File>)) -> Result<file_sys::FileRequest, FileError>{
-    let cmd = &cmd[..]; // convert command string to string literal for easier matching
-    match cmd{
-        "read" => Ok(file_sys::FileRequest::new( // read file
-            user,
-            path,
-            file_sys::Request::Read,
-        )),
-        "write" => { // write to file
-            if let Some(file) = attachment{
-                Ok(file_sys::FileRequest::new(
-                    user,
-                    path,
-                    file_sys::Request::Write(file),
-                ))
-            }
-            else{
-                Err(FileError::MissingFile)
-            }
-        }
-        "del" => Ok(file_sys::FileRequest::new( // delete file
-            user,
-            path,
-            file_sys::Request::Del,
-        )),
-        "copy" => { // copy file to new location
-            if let Some(new_path) = path2{ // copy to path2 from path
-                Ok(file_sys::FileRequest::new(
-                    user,
-                    path,
-                    file_sys::Request::Copy(new_path),
-                ))
-            }
-            else{
-                Err(FileError::MissingTarget)
-            }
-        },
-        "move" => { // move file to new location
-            if let Some(new_path) = path2{ // move to path2 from path
-                Ok(file_sys::FileRequest::new(
-                    user,
-                    path,
-                    file_sys::Request::Move(new_path),
-                ))
-            }
-            else{
-                Err(FileError::MissingTarget)
-            }
-        },
-        "mkdir" => Ok(file_sys::FileRequest::new( // make directory
-            user,
-            path,
-            file_sys::Request::MakeDir,
-        )),
-        "rmdir" => Ok(file_sys::FileRequest::new( // remove directory
-            user,
-            path,
-            file_sys::Request::DelDir,
-        )),
-        _ => Err(FileError::BadCommand), // default when command has no equivalent
-    }
 }
