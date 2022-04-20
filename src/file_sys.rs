@@ -88,10 +88,10 @@ impl Files{
         let p = fs::read_dir("fileIO system")?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) {
+            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) { // return matching finds
                 r += &format!("{} ", i?.path().display());
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") {
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") { // search recursively in unhidden directories
                 r += &self.subsearch(&format!("{}", i?.path().display()), term)?;
             }
         }
@@ -101,10 +101,10 @@ impl Files{
         let p = fs::read_dir(start)?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) {
+            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) { // return matching finds
                 r += &format!("{} ", i?.path().display());
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") {
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") { // search recursively in unhidden directories
                 self.subsearch(&format!("{}", i?.path().display()), term)?;
             }
         }
@@ -113,8 +113,8 @@ impl Files{
     pub fn handle_print_hidden(&self) -> Result<String> { // walk current directory and print all hidden (.) directories and files
         Ok(WalkDir::new(".").into_iter()
             .filter_entry(|e| self.is_hidden(e))
-            .filter_map(|v| Some(v.ok()?.file_name().to_str()?.to_string() + " "))
-            .collect())
+            .filter_map(|v| Some(v.ok()?.file_name().to_str()?.to_string() + " ")) // lost the ignore list b/c this doesn't like "mod constants"
+            .collect())                                                            // for some reason
     }
     fn is_hidden(&self, entry: &WalkDirEntry) -> bool { // returns true if file or directory is hidden; false otherwise
         entry.file_name()
@@ -125,13 +125,13 @@ impl Files{
     pub fn handle_print_dir(&self, dir_path: &str) -> Result<File> { // print a directory
         if self.find_dir(dir_path) { // check directory validity
             let mut file = tempfile()?;
-            let mut s: String = "dir specified: ".to_string() + dir_path + "\n";
-            s += &fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + "\n")).collect::<String>();
-            file.write_all(&s.as_bytes())?;
-            Ok(file)
+            let mut s: String = "dir specified: ".to_string() + dir_path + "\n"; // initialize result string
+            s += &fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + "\n")).collect::<String>(); // add dir contents to result string
+            file.write_all(&s.as_bytes())?; // write result string to file for multi-line capability
+            Ok(file) // return file
         }
         else{
-            Err(Error::new(ErrorKind::AddrNotAvailable, "Bad directory"))
+            Err(Error::new(ErrorKind::AddrNotAvailable, "Bad directory")) // invalid directory
         }
     }
 }
