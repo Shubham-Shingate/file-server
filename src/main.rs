@@ -17,7 +17,7 @@ fn main() {
         match stream {
             Ok(stream) => {
                 println!("New connection: {}", stream.peer_addr().unwrap());
-                let lcl_db = Arc::clone(&files); // create new database reference for thread
+                let lcl_db = Arc::clone(&files); // create new fileIO reference for thread
                 thread::spawn(move|| {
                     match handle_client(stream, lcl_db){
                         Ok(()) => (), // manual disconnect, no problems
