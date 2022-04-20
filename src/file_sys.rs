@@ -113,10 +113,10 @@ impl Files{
     pub fn handle_print_hidden(&self) -> Result<String> { // walk current directory and print all hidden (.) directories and files
         let ignore = vec![".", ".git", ".workflows", ".gitignore"];
         Ok(WalkDir::new(".").into_iter()
-            .filter_entry(|e| self.is_hidden(e))
-            .filter_map(|v| Some(v.ok()?.file_name().to_str()?.to_string() + " ")) // lost the ignore list b/c this doesn't like "mod constants"
-            .filter(|x| !ignore.contains(&x.trim()))
-            .collect())                                                            // for some reason
+            .filter_entry(|e| self.is_hidden(e)) // filter hidden only
+            .filter_map(|v| Some(v.ok()?.file_name().to_str()?.to_string() + " ")) // string conversion
+            .filter(|x| !ignore.contains(&x.trim())) // filter ignored
+            .collect())
     }
     fn is_hidden(&self, entry: &WalkDirEntry) -> bool { // returns true if file or directory is hidden; false otherwise
         entry.file_name()
