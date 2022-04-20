@@ -9,3 +9,6 @@ pub const HELP: &str = "help";                 // lists all possible file operat
 pub const SEARCH: &str = "search";
 //TODO Commands:
     // SEARCH          - "search"  ---- searches files' content and filenames that match the given search input
+
+//Ignore List
+pub const HIDDEN_IGNORE: &'static [&'static str] = &[".", ".git", ".workflows", ".gitignore"];

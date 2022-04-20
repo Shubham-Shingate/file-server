@@ -20,10 +20,10 @@ impl LinesCodec {
         Ok(Self { reader, writer })
     }
 
-    // change read timeout
+    // change read timeout, used for attachment checks
     pub fn set_timeout(&mut self, time: u64) {
         match time{
-            0 => self.reader.get_mut().set_read_timeout(None),
+            0 => self.reader.get_mut().set_read_timeout(None), // reset
             _ => self.reader.get_mut().set_read_timeout(Some(Duration::from_secs(time))),
         };
     }
@@ -45,15 +45,15 @@ impl LinesCodec {
 
     // Write the given file (appending a newline) to the TcpStream
     pub fn send_file(&mut self, file: &mut File) -> io::Result<()> {
-        let mut writer = self.writer.get_mut();
-        io::copy(file, writer)?;
+        let writer = self.writer.get_mut(); // copy writer in linewriter
+        io::copy(file, writer)?; // write directly to tcp
         Ok(())
     }
 
     // Read a received file from the TcpStream
     pub fn read_file(&mut self) -> io::Result<File> {
-        let mut file = tempfile()?;
-        io::copy(&mut self.reader, &mut file)?;
-        Ok(file)
+        let mut file = tempfile()?; // create tempfile to write to
+        io::copy(&mut self.reader, &mut file)?; // copy tcp to temp file
+        Ok(file) // return tempfile
     }
 }
