@@ -126,11 +126,9 @@ impl Files{
     }
     pub fn handle_print_dir(&self, dir_path: &str) -> Result<File> { // print a directory
         if self.find_dir(dir_path) { // check directory validity
-            let mut file = tempfile()?;
-            let mut s: String = "dir specified: ".to_string() + dir_path + "\n"; // initialize result string
-            s += &fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + "\n")).collect::<String>(); // add dir contents to result string
-            file.write_all(&s.as_bytes())?; // write result string to file for multi-line capability
-            Ok(file) // return file
+            let mut s: String = "dir specified: ".to_string() + dir_path + " "; // initialize result string
+            s += &fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + " ")).collect::<String>(); // add dir contents to result string
+            Ok(s) // return list
         }
         else{
             Err(Error::new(ErrorKind::AddrNotAvailable, "Bad directory")) // invalid directory

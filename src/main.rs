@@ -7,8 +7,6 @@ use lib::LinesCodec;
 use std::thread;
 use std::net::{TcpListener, TcpStream};
 use std::sync::Arc;
-use std::error;
-use std::boxed::Box;
 
 fn main() {
     let files = Arc::new(Files::new()); // init fileIO
@@ -34,7 +32,7 @@ fn main() {
 }
 
 // handle individual clients
-fn handle_client(stream: TcpStream, mut files: Arc<Files>) -> Result<(), Box<dyn error::Error>> {
+fn handle_client(stream: TcpStream, mut files: Arc<Files>) -> std::io::Result<()> {
     let other = &stream.peer_addr()?; // store other for later reference
     let mut codec = LinesCodec::new(stream)?;
     let msg: String = codec.read_message()?; // Respond to initial handshake
@@ -48,12 +46,12 @@ fn handle_client(stream: TcpStream, mut files: Arc<Files>) -> Result<(), Box<dyn
                 match Arc::<Files>::make_mut(&mut files).call(&cmd, codec.read_file().ok()) { // make fn call
                     Ok(ResponseType::File(mut f)) => codec.send_file(&mut f)?, // send file response
                     Ok(ResponseType::String(s)) => codec.send_message(&s)?, // send message response
-                    Err(e) => codec.send_message(&format!("{}", e))?, // send error info
+                    Err(e) => codec.send_message(&format!("Error running command '{}': {}", cmd.split_whitespace().next().unwrap_or("missing command"), e))?, // send error info
                 }
                 codec.set_timeout(0); // reset timeout to await further input
             },
             Err(e) => {
-                return Err(Box::new(e)) // report error
+                return Err(e) // report error
             }
         }
     }
