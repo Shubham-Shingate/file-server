@@ -47,14 +47,14 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
     //Establish a DB Connection
     let conn = PgPersistance::get_connection();
     
-    //<<Testing Select and Insert on both the tables
-    let all_accounts = PgPersistance::find_all_acc(&conn);
-    let acct = PgPersistance::find_by_username(&conn, "KGF");
-    PgPersistance::save_new_acc(&conn, String::from("KGF"), String::from("KGF@3344"), String::from("kgf@gmail.com"));
+    //<<Sample usage of (ORM) to query database without SQL statements-------------------- (For developer reference)
+    // let all_accounts = PgPersistance::find_all_acc(&conn);
+    // let acct = PgPersistance::find_by_username(&conn, "KGF");
+    // PgPersistance::save_new_acc(&conn, String::from("KGF"), String::from("KGF@3344"), String::from("kgf@gmail.com"));
     
-    let all_files = PgPersistance::find_all_files(&conn);
-    PgPersistance::save_new_file(&conn, String::from("D:/Home/Desktop"));
-    //Testing Select and Insert>>
+    // let all_files = PgPersistance::find_all_files(&conn);
+    // PgPersistance::save_new_file(&conn, String::from("D:/Home/Desktop"));
+    //Sample usage of (ORM) to query database without SQL statements>>-------------------- (For developer reference)
 
     let mut codec = LinesCodec::new(stream)?;
 
