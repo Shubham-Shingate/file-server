@@ -1,218 +1,137 @@
-use std::collections::HashMap;
-use std::fmt;
-use std::error;
+// broad usage
 use std::fs::{File, OpenOptions};
 use std::io::*;
 use std::path::Path;
 use std::fs;
-
-#[derive(Debug)]
-pub enum FileError {
-    PermissionDenied,
-    MissingFile,
-    MissingTarget,
-    BadCommand,
-}
-
-impl fmt::Display for FileError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result{
-        match self{
-            FileError::PermissionDenied => write!(f, "You do not have permission to access the file"),
-            FileError::MissingFile => write!(f, "File Not Found"),
-            FileError::MissingTarget => write!(f, "No Destination Provided"),
-            FileError::BadCommand => write!(f, "Invalid File Request"),
-        }
-    }
-}
-
-impl error::Error for FileError {}
-
-#[derive(PartialEq, Clone)]
-enum Permission{ // user permissions
-    Owner,
-    Read,
-    Write,
-}
+// used for print dir & other ops that may need multi-line messages
+use tempfile::tempfile;
+// used for hidden dir file op
+use walkdir::DirEntry as WalkDirEntry;
+use walkdir::WalkDir;
 
 #[derive(Clone)]
-struct FileInfo{ // info to access file through std::io
-    filepath: String,
-    permissions: HashMap<String, Permission>
+pub struct Files; // fileIO system reference
+
+pub enum ResponseType { // handles different return types
+    File(File),
+    String(String),
 }
 
-pub enum Request{ // various request types
-    MakeDir,
-    DelDir,
-    Read,
-    Write(File/*file to write from*/),
-    Move(String/*new path*/),
-    Copy(String/*new path*/),
-    Del,
-
-}
-
-pub struct FileRequest{ // required info to make a file request
-    user: String,
-    filepath: String,
-    request_type: Request,
-}
-
-#[derive(Clone)]
-pub struct Files{ // collection of known files
-    files: Vec<FileInfo>,
-}
-
-impl FileRequest{
-    pub fn new(user: String, filepath: String, request_type: Request) -> FileRequest{ // make new file request
-        FileRequest{
-            user,
-            filepath,
-            request_type,
-        }
+impl From<File> for ResponseType { // embed given file into response
+    fn from(f: File) -> Self {
+        ResponseType::File(f)
     }
 }
 
-impl FileInfo{
-    fn has_permission(&self, u: &String, p: &Permission) -> bool{ // check if user has permissions
-        match self.permissions.get(u){
-            Some(Permission::Owner) => true,
-            Some(Permission::Read) if p == &Permission::Read => true,
-            Some(Permission::Write) if p != &Permission::Owner => true,
-            _ => false,
-        }
-    }
-    fn new(filepath: String, o: String) -> FileInfo{ // make new fileinfo
-        let mut permissions = HashMap::new();
-        permissions.insert(o, Permission::Owner);
-        FileInfo{
-            filepath,
-            permissions
-        }
+impl From<String> for ResponseType { // embed given string into response
+    fn from(s: String) -> Self {
+        ResponseType::String(s)
     }
 }
 
 impl Files{
-    pub fn new() -> Files{ // new db
-        Files{
-            files: Vec::new()
+    pub fn new() -> Files { Files{} } // new fileIO system
+
+    pub fn call(&mut self, s: &str, a: Option<File>) -> Result<ResponseType> { // handles basic input from a string and, if attached, a file
+        let mut s = s.split_whitespace();
+        match s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad function call"))? {
+            "read" => Ok(self.read_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "write" => Ok(self.write_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?, a.ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "move" => Ok(self.move_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?, s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "copy" => Ok(self.copy_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?, s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "del" => Ok(self.delete_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "mkdir" => Ok(self.make_directory(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "rmdir" => Ok(self.remove_directory(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "search" => Ok(self.search(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "printdir" => Ok(self.handle_print_dir(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+            "printhidden" => Ok(self.handle_print_hidden()?.into()),
+            _ => Err(Error::new(ErrorKind::InvalidInput, "Bad function call")),
         }
     }
-    fn find(&self, s: &String) -> std::result::Result<&FileInfo, FileError>{ // find a fileinfo in db
-        for i in &self.files{
-            if s == &i.filepath{
-                return Ok(i)
-            }
-        }
-        Err(FileError::MissingFile)
+
+    pub fn find_dir(&self, path: &str) -> bool { // find a directory in fileIO system
+        fs::read_dir(Path::new(path)).is_ok()
     }
-    pub fn file_request(&mut self, request: &FileRequest) -> std::result::Result<Option<File>, Box<dyn error::Error>>{ // do file request
-        match &request.request_type {
-            Request::Read => {
-                //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission
-                    Ok(Some(File::open(Path::new(&request.filepath))?))
-                //}
-                //else{
-                //    Err(Box::new(FileError::PermissionDenied))
-                //}
-            },
-            Request::Write(from) => {
-                let mut from = &*from.clone();
-                if let Ok(ref _file) = self.find(&request.filepath){ //look for existing file
-                    //if file.has_permission(&request.user, &Permission::Write){ // check permission
-                        let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&request.filepath))?;
-                        copy(&mut from, &mut file)?;
-                        Ok(Some(file))
-                    //}
-                    //else{
-                    //    Err(Box::new(FileError::PermissionDenied))
-                    //}
-                }
-                else {
-                    let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&request.filepath))?;
-                    copy(&mut from, &mut file)?;
-                    self.files.push(FileInfo::new(request.filepath.clone(), request.user.clone()));
-                    Ok(Some(file))
-                }
-            },
-            Request::Copy(new_path) => {
-                    //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Read){ // check permission on old file
-                        let mut file = OpenOptions::new().read(true).write(true).create(false).open(Path::new(&request.filepath))?;
-                        let request = FileRequest{ // prep to copy original to new location
-                            request_type: Request::Write(file),
-                            user: request.user.clone(),
-                            filepath: new_path.to_owned(),
-                        };
-                        self.file_request(&request) // copy original to new location
-                    //}
-                    //else{
-                    //    Err(Box::new(FileError::PermissionDenied))
-                    //}
-            },
-            Request::Move(new_path) => {
-                let request = FileRequest{ // prep to copy original to new location
-                    request_type: Request::Copy(new_path.to_string()),
-                    user: request.user.clone(),
-                    filepath: request.filepath.clone(),
-                };
-                self.file_request(&request)?; // copy original to new location
-                let request = FileRequest{
-                    request_type: Request::Del,
-                    user: request.user.clone(),
-                    filepath: request.filepath.clone(),
-                };
-                self.file_request(&request)?; // delete orignal on successful copy
-                let request = FileRequest{ // prep to return file
-                    request_type: Request::Read,
-                    user: request.user.clone(),
-                    filepath: request.filepath.clone(),
-                };
-                self.file_request(&request) // return file
-            }
-            Request::Del => {
-                //if self.find(&request.filepath)?.has_permission(&request.user, &Permission::Write){ // check permission
-                    fs::remove_file(request.filepath.clone())?; // remove file
-                    self.files.swap_remove(self.files.iter().position(|x| x.filepath == request.filepath).unwrap()); // remove fileinfo
-                    Ok(None)
-                //}
-                //else{
-                //    Err(Box::new(FileError::PermissionDenied))
-                //}
-                
-            },
-            Request::MakeDir => {
-                fs::create_dir_all(request.filepath.clone())?; // add directory
-                Ok(None)
-            },
-            Request::DelDir => {
-                fs::remove_dir_all(request.filepath.clone())?; // remove directory
-                Ok(None)
-            },
-        }
+    pub fn find_file(&self, path: &str) -> bool { // find a file in fileIO system
+        OpenOptions::new().open(Path::new(&path)).is_ok()
     }
-    pub fn search(&self, term: &str) -> String{
-        let p = fs::read_dir("db").unwrap();
+    pub fn read_file(&self, path: &str) -> Result<File> { // read from file
+        Ok(OpenOptions::new().read(true).open(Path::new(&path))?)
+    }
+    pub fn write_file(&self, path: &str, mut ct: File) -> Result<File> { // write to file
+        let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&path))?;
+        copy(&mut ct, &mut file)?;
+        Ok(OpenOptions::new().read(true).open(Path::new(&path))?)
+    }
+    pub fn copy_file(&self, old_path: &str, new_path: &str) -> Result<File> { // copy original to new location
+        let file = OpenOptions::new().read(true).write(true).create(false).open(Path::new(old_path))?;
+        self.write_file(new_path, file)
+    }
+    pub fn move_file(&self, old_path: &str, new_path: &str) -> Result<File> {// copy original to new location, then delete original
+        self.copy_file(old_path, new_path)?;
+        self.delete_file(old_path)?;
+        OpenOptions::new().read(true).open(Path::new(old_path))
+    }
+    pub fn delete_file(&self, path: &str) -> Result<String> { // remove file
+        fs::remove_file(Path::new(path))?;
+        Ok("File deleted successfully!".to_string())
+    }
+    pub fn make_directory(&self, path: &str) -> Result<String> { // add directory
+        fs::create_dir_all(Path::new(path))?;
+        Ok("Directory successfully created!".to_string())
+    }
+    pub fn remove_directory(&self, path: &str) -> Result<String> { // remove directory
+        fs::remove_dir_all(Path::new(path))?;
+        Ok("Directory successfully removed!".to_string())
+    }
+    pub fn search(&self, term: &str) -> Result<String> { // returns a list
+        let p = fs::read_dir("fileIO system")?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) {
-                r += &format!("{} ", i.unwrap().path().display());
+            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) { // return matching finds
+                r += &format!("{} ", i?.path().display());
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") {
-                r += &self.subsearch(&format!("{}", i.unwrap().path().display()), term);
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") { // search recursively in unhidden directories
+                r += &self.subsearch(&format!("{}", i?.path().display()), term)?;
             }
         }
-        r
+        Ok(r)
     }
-    fn subsearch(&self, start: &str, term: &str) -> String {
-        let p = fs::read_dir(start).unwrap();
+    fn subsearch(&self, start: &str, term: &str) -> Result<String> { // recursive call of the basic search fn
+        let p = fs::read_dir(start)?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) {
-                r += &format!("{} ", i.unwrap().path().display());
+            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) { // return matching finds
+                r += &format!("{} ", i?.path().display());
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") {
-                self.subsearch(&format!("{}", i.unwrap().path().display()), term);
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") { // search recursively in unhidden directories
+                self.subsearch(&format!("{}", i?.path().display()), term)?;
             }
         }
-        r
+        Ok(r)
+    }
+    pub fn handle_print_hidden(&self) -> Result<String> { // walk current directory and print all hidden (.) directories and files
+        let ignore = vec![".", ".git", ".workflows", ".gitignore"];
+        Ok(WalkDir::new(".").into_iter()
+            .filter_entry(|e| self.is_hidden(e)) // filter hidden only
+            .filter_map(|v| Some(v.ok()?.file_name().to_str()?.to_string() + " ")) // string conversion
+            .filter(|x| !ignore.contains(&x.trim())) // filter ignored
+            .collect())
+    }
+    fn is_hidden(&self, entry: &WalkDirEntry) -> bool { // returns true if file or directory is hidden; false otherwise
+        entry.file_name()
+            .to_str()
+            .map(|s| s.starts_with("."))
+            .unwrap_or(false)
+    }
+    pub fn handle_print_dir(&self, dir_path: &str) -> Result<File> { // print a directory
+        if self.find_dir(dir_path) { // check directory validity
+            let mut s: String = "dir specified: ".to_string() + dir_path + " "; // initialize result string
+            s += &fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + " ")).collect::<String>(); // add dir contents to result string
+            Ok(s) // return list
+        }
+        else{
+            Err(Error::new(ErrorKind::AddrNotAvailable, "Bad directory")) // invalid directory
+        }
     }
 }
