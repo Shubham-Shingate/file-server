@@ -46,12 +46,14 @@ fn handle_print_hidden() -> Vec<walkdir::DirEntry> {
 fn handle_client(stream: TcpStream) -> io::Result<()> {
     //Establish a DB Connection
     let conn = PgPersistance::get_connection();
-    let all_accounts = PgPersistance::find_all(&conn);
     
-    PgPersistance::save_new_acc(&conn, 1, String::from("ShubhamS"), String::from("Shubham@3344"), String::from("shubhamshingte2234@gmail.com"));
-
-    
+    //<<Testing Select and Insert on both the tables
+    let all_accounts = PgPersistance::find_all_acc(&conn);
+    PgPersistance::save_new_acc(&conn, String::from("KGF"), String::from("KGF@3344"), String::from("kgf@gmail.com"));
+    let all_files = PgPersistance::find_all_files(&conn);
+    PgPersistance::save_new_file(&conn, String::from("D:/Home/Desktop"));
     let mut codec = LinesCodec::new(stream)?;
+    //Testing Select and Insert>>
 
     // Respond to initial handshake
     let mut msg: String = codec.read_message()?;

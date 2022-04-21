@@ -6,7 +6,7 @@ mod schema;
 
 use diesel::prelude::*;
 use diesel::PgConnection;
-use models::{Account, NewAccount, FileEntity};
+use models::{Account, NewAccount, FileEntity, NewFileEntity};
 
 pub struct PgPersistance {}
 
@@ -18,7 +18,7 @@ impl PgPersistance {
         return db_connection;
     }
 
-    pub fn find_all(connection: &PgConnection) -> Vec<Account> {
+    pub fn find_all_acc(connection: &PgConnection) -> Vec<Account> {
         use schema::accounts::dsl::*;
 
         let all_accounts = accounts
@@ -27,9 +27,9 @@ impl PgPersistance {
         return all_accounts;
     }
  
-    pub fn save_new_acc(connection: &PgConnection, user_id: i32, username: String, password: String, email: String) {
+    pub fn save_new_acc(connection: &PgConnection, username: String, password: String, email: String) {
         use schema::accounts;
-        let new_acc = NewAccount::new(user_id, username, password, email);
+        let new_acc = NewAccount::new(username, password, email);
         diesel::insert_into(accounts::table)
                     .values(&new_acc)
                     .get_result::<Account>(&*connection)
@@ -37,7 +37,7 @@ impl PgPersistance {
 
     }
 
-
+    //This is just fetching all file paths from PostGreSQL DB (not the actual file as its stored in file system)
     pub fn find_all_files(connection: &PgConnection) -> Vec<FileEntity> {
         use schema::fileentity::dsl::*;
 
@@ -45,6 +45,18 @@ impl PgPersistance {
             .load::<FileEntity>(connection)
             .expect("Error getting all the accounts");
         return all_files;
+    }
+
+    //This is just saving a new file path to PostGreSQL DB (not the actual file as its stored in file system)
+    pub fn save_new_file(connection: &PgConnection, filepath: String) {
+        use schema::fileentity;
+
+        let new_file_path = NewFileEntity::new(filepath);
+        diesel::insert_into(fileentity::table)
+                    .values(&new_file_path)
+                    .get_result::<FileEntity>(&*connection)
+                    .expect("Error adding new file path");
+
     }
 
 

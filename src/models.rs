@@ -1,4 +1,5 @@
 use crate::schema::accounts;
+use crate::schema::fileentity;
 
 #[derive(Queryable)]
 pub struct Account {
@@ -11,17 +12,14 @@ pub struct Account {
 #[derive(Insertable)]
 #[table_name = "accounts"]
 pub struct NewAccount {
-    pub user_id: i32,
     pub username: String,
     pub password: String,
     pub email: String,
 }
 
 impl NewAccount {
-
-    pub fn new(user_id: i32, username: String, password: String, email: String) -> NewAccount {
+    pub fn new(username: String, password: String, email: String) -> NewAccount {
         NewAccount {
-            user_id,
             username,
             password,
             email
@@ -34,4 +32,18 @@ impl NewAccount {
 pub struct FileEntity {
     pub file_id: i32,
     pub filepath: String,
+}
+
+#[derive(Insertable)]
+#[table_name = "fileentity"]
+pub struct NewFileEntity {
+    pub filepath: String
+}
+
+impl NewFileEntity {
+    pub fn new(filepath: String) -> NewFileEntity {
+        NewFileEntity {
+            filepath
+        }
+    }
 }

@@ -6,3 +6,15 @@ table! {
         email -> Varchar,
     }
 }
+
+table! {
+    fileentity (file_id) {
+        file_id -> Int4,
+        filepath -> Varchar,
+    }
+}
+
+allow_tables_to_appear_in_same_query!(
+    accounts,
+    fileentity,
+);

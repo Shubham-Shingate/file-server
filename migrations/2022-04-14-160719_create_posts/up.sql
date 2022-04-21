@@ -5,8 +5,3 @@ CREATE TABLE accounts (
 	password VARCHAR ( 50 ) NOT NULL,
 	email VARCHAR ( 255 ) UNIQUE NOT NULL
 );
-
-CREATE TABLE fileentity (
-	file_id serial PRIMARY KEY,
-	filepath VARCHAR ( 255 ) UNIQUE NOT NULL
-);
