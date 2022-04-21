@@ -6,3 +6,10 @@ table! {
         email -> Varchar,
     }
 }
+
+table! {
+    fileentity (file_id) {
+        file_id -> Int4,
+        filepath -> Varchar,
+    }
+}
