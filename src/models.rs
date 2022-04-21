@@ -27,5 +27,11 @@ impl NewAccount {
             email
         }
     }
+}
 
+//Siva
+#[derive(Queryable)]
+pub struct FileEntity {
+    pub file_id: i32,
+    pub filepath: String,
 }

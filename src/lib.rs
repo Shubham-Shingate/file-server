@@ -6,7 +6,7 @@ mod schema;
 
 use diesel::prelude::*;
 use diesel::PgConnection;
-use models::{Account, NewAccount};
+use models::{Account, NewAccount, FileEntity};
 
 pub struct PgPersistance {}
 
@@ -26,7 +26,7 @@ impl PgPersistance {
             .expect("Error getting all the accounts");
         return all_accounts;
     }
-
+ 
     pub fn save_new_acc(connection: &PgConnection, user_id: i32, username: String, password: String, email: String) {
         use schema::accounts;
         let new_acc = NewAccount::new(user_id, username, password, email);
@@ -38,6 +38,14 @@ impl PgPersistance {
     }
 
 
+    pub fn find_all_files(connection: &PgConnection) -> Vec<FileEntity> {
+        use schema::fileentity::dsl::*;
+
+        let all_files = fileentity
+            .load::<FileEntity>(connection)
+            .expect("Error getting all the accounts");
+        return all_files;
+    }
 
 
 }
