@@ -1,7 +1,7 @@
 use crate::schema::accounts;
 use crate::schema::fileentity;
 
-#[derive(Queryable)]
+#[derive(Queryable, Clone, Debug)]
 pub struct Account {
     pub user_id: i32,
     pub username: String,
@@ -9,7 +9,7 @@ pub struct Account {
     pub email: String,
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Clone, Debug)]
 #[table_name = "accounts"]
 pub struct NewAccount {
     pub username: String,

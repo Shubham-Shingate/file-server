@@ -18,6 +18,15 @@ impl PgPersistance {
         return db_connection;
     }
 
+    pub fn save_new_acc(connection: &PgConnection, username: String, password: String, email: String) {
+        use schema::accounts;
+        let new_acc = NewAccount::new(username, password, email);
+        diesel::insert_into(accounts::table)
+                    .values(&new_acc)
+                    .get_result::<Account>(&*connection)
+                    .expect("Error adding new account");
+    }
+    
     pub fn find_all_acc(connection: &PgConnection) -> Vec<Account> {
         use schema::accounts::dsl::*;
 
@@ -27,14 +36,14 @@ impl PgPersistance {
         return all_accounts;
     }
  
-    pub fn save_new_acc(connection: &PgConnection, username: String, password: String, email: String) {
-        use schema::accounts;
-        let new_acc = NewAccount::new(username, password, email);
-        diesel::insert_into(accounts::table)
-                    .values(&new_acc)
-                    .get_result::<Account>(&*connection)
-                    .expect("Error adding new account");
+    pub fn find_by_username(connection: &PgConnection, usr_name: &str) -> Account {
+        use schema::accounts::dsl::*;
 
+        let acc_found: Vec<Account> = accounts
+                                        .filter(username.eq(usr_name))
+                                        .load::<Account>(connection)
+                                        .expect("Error loading the user account");
+        return acc_found[0].clone();
     }
 
     //This is just fetching all file paths from PostGreSQL DB (not the actual file as its stored in file system)
