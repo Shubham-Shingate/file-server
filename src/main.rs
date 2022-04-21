@@ -48,6 +48,8 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
     let conn = PgPersistance::get_connection();
     let all_accounts = PgPersistance::find_all(&conn);
     
+    PgPersistance::save_new_acc(&conn, 1, String::from("ShubhamS"), String::from("Shubham@3344"), String::from("shubhamshingte2234@gmail.com"));
+
     
     let mut codec = LinesCodec::new(stream)?;
 
