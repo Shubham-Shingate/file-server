@@ -47,6 +47,7 @@ impl LinesCodec {
     pub fn send_file(&mut self, file: &mut File) -> io::Result<()> {
         let writer = self.writer.get_mut(); // copy writer in linewriter
         io::copy(file, writer)?; // write directly to tcp
+        writer.flush()?;
         Ok(())
     }
 
