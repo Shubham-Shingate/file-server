@@ -124,7 +124,7 @@ impl Files{
             .map(|s| s.starts_with("."))
             .unwrap_or(false)
     }
-    pub fn handle_print_dir(&self, dir_path: &str) -> Result<File> { // print a directory
+    pub fn handle_print_dir(&self, dir_path: &str) -> Result<String> { // print a directory
         if self.find_dir(dir_path) { // check directory validity
             let mut s: String = "dir specified: ".to_string() + dir_path + " "; // initialize result string
             s += &fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + " ")).collect::<String>(); // add dir contents to result string
