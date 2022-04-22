@@ -1,6 +1,9 @@
 //Tester
 pub const HELLO: &str = "Hello";
 
+//Root Folder
+pub const ROOT: &str = "file_root/";
+
 //The Commands
 pub const PRINT_DIR: &str = "printdir";         // lists contents of given directory
 pub const QUIT: &str = "quit";                  // quits the file-client using exit()

@@ -44,8 +44,10 @@ fn handle_client(stream: TcpStream, mut files: Arc<Files>) -> std::io::Result<()
             Ok(cmd) => { // run command from file_sys
                 let cmd_name = cmd.split_whitespace().next().unwrap_or("missing command");
                 println!("Attempting to run command '{}' for {}...", cmd_name, other);
-                codec.set_timeout(5); // check for file attachment
-                match Arc::<Files>::make_mut(&mut files).call(&cmd, codec.read_file().ok()) { // make fn call
+                codec.set_timeout(1); // check for file attachment
+                let attachment = codec.read_file();
+                println!("Attached: {:?}", attachment);
+                match Arc::<Files>::make_mut(&mut files).call(&cmd, attachment.ok()) { // make fn call
                     Ok(ResponseType::File(mut f)) => {
                         println!("Successfully ran command '{}' for {}", cmd_name, other);
                         codec.send_message("Ok")?;

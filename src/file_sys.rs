@@ -3,11 +3,12 @@ use std::fs::{File, OpenOptions};
 use std::io::*;
 use std::path::Path;
 use std::fs;
-// used for print dir & other ops that may need multi-line messages
-use tempfile::tempfile;
 // used for hidden dir file op
 use walkdir::DirEntry as WalkDirEntry;
 use walkdir::WalkDir;
+// used for folder root & command names
+#[path = "constants.rs"] mod constants;
+use constants as consts;
 
 #[derive(Clone)]
 pub struct Files; // fileIO system reference
@@ -33,22 +34,22 @@ impl Files{
     pub fn new() -> Files { Files{} } // new fileIO system
 
     pub fn call(&mut self, s: &str, a: Option<File>) -> Result<ResponseType> { // handles basic input from a string and, if attached, a file
-        let root = "file_root/".to_string(); // root folder to add before paths
+        let root = consts::ROOT.to_string(); // root folder to add before paths
         let mut s = s.split_whitespace();
         match s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing function call"))? {
-            "read" => Ok(self.read_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
-            "write" => Ok(self.write_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?), 
+            consts::READ => Ok(self.read_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::WRITE => Ok(self.write_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?), 
                 a.ok_or(Error::new(ErrorKind::InvalidInput, "Missing file parameter"))?)?.into()),
-            "move" => Ok(self.move_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
+            consts::MOVE => Ok(self.move_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
                 &(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing destination parameter"))?))?.into()),
-            "copy" => Ok(self.copy_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
+            consts::COPY => Ok(self.copy_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
                 &(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing destination parameter"))?))?.into()),
-            "del" => Ok(self.delete_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
-            "mkdir" => Ok(self.make_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
-            "rmdir" => Ok(self.remove_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
-            "search" => Ok(self.search(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing search term parameter"))?)?.into()),
-            "printdir" => Ok(self.handle_print_dir(&(root + s.next().unwrap_or("")))?.into()),
-            "printhidden" => Ok(self.handle_print_hidden()?.into()),
+            consts::DELETE => Ok(self.delete_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::MAKE_DIR => Ok(self.make_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::REMOVE_DIR => Ok(self.remove_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::SEARCH => Ok(self.search(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing search term parameter"))?)?.into()),
+            consts::PRINT_DIR => Ok(self.handle_print_dir(&(root + s.next().unwrap_or("")))?.into()),
+            consts::PRINT_HIDDEN => Ok(self.handle_print_hidden()?.into()),
             _ => Err(Error::new(ErrorKind::InvalidInput, "Invalid function call")),
         }
     }
@@ -71,7 +72,7 @@ impl Files{
         let file = OpenOptions::new().read(true).write(true).create(false).open(Path::new(old_path))?;
         self.write_file(new_path, file)
     }
-    pub fn move_file(&self, old_path: &str, new_path: &str) -> Result<File> {// copy original to new location, then delete original
+    pub fn move_file(&self, old_path: &str, new_path: &str) -> Result<File> { // copy original to new location, then delete original
         self.copy_file(old_path, new_path)?;
         self.delete_file(old_path)?;
         OpenOptions::new().read(true).open(Path::new(old_path))
@@ -89,29 +90,29 @@ impl Files{
         Ok("Directory successfully removed!".to_string())
     }
     pub fn search(&self, term: &str) -> Result<String> { // returns a list
-        let root = "file_root/"; // root folder
+        let root = consts::ROOT; // root folder
         let p = fs::read_dir(root)?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(term) { // return matching finds
+            if i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(term) { // return matching finds
                 r += &format!("{} ", i?.path().display()).trim_start_matches(root);
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(".") { // search recursively in unhidden directories
-                r += &self.subsearch(&format!("{}", i?.path().display()), term)?;
+            else if !i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(".") { // search recursively in unhidden directories
+                r += &self.subsearch(&i?.path().display().to_string(), term)?;
             }
         }
         Ok(r)
     }
     fn subsearch(&self, start: &str, term: &str) -> Result<String> { // recursive call of the basic search fn
-        let root = "file_root/"; // root folder
+        let root = consts::ROOT; // root folder
         let p = fs::read_dir(start)?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(term) { // return matching finds
+            if i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(term) { // return matching finds
                 r += &format!("{} ", i?.path().display()).trim_start_matches(root);
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(".") { // search recursively in unhidden directories
-                self.subsearch(&format!("{}", i?.path().display()), term)?;
+            else if !i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(".") { // search recursively in unhidden directories
+                self.subsearch(&i?.path().display().to_string(), term)?;
             }
         }
         Ok(r)
@@ -131,8 +132,12 @@ impl Files{
             .unwrap_or(false)
     }
     pub fn handle_print_dir(&self, dir_path: &str) -> Result<String> { // print a directory
+        let root = consts::ROOT; // root folder
         if self.find_dir(dir_path) { // check directory validity
-            Ok(fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + " ")).collect::<String>()) // add dir contents to result string
+            Ok(fs::read_dir(dir_path)? // add dir contents to result string & return it
+                .filter_map(|x| Some(x.unwrap().path().display().to_string().trim_start_matches(root).to_string() + " "))
+                .collect::<String>()
+            )
         }
         else{
             Err(Error::new(ErrorKind::AddrNotAvailable, "Inalid directory")) // invalid directory message
