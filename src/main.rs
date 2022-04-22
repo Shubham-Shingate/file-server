@@ -42,11 +42,24 @@ fn handle_client(stream: TcpStream, mut files: Arc<Files>) -> std::io::Result<()
         match codec.read_message() { // command
             Ok(cmd) if &cmd == constants::QUIT => break, // end conncetion
             Ok(cmd) => { // run command from file_sys
+                let cmd_name = cmd.split_whitespace().next().unwrap_or("missing command");
+                println!("Attempting to run command '{}' for {}...", cmd_name, other);
                 codec.set_timeout(5); // check for file attachment
                 match Arc::<Files>::make_mut(&mut files).call(&cmd, codec.read_file().ok()) { // make fn call
-                    Ok(ResponseType::File(mut f)) => codec.send_file(&mut f)?, // send file response
-                    Ok(ResponseType::String(s)) => codec.send_message(&s)?, // send message response
-                    Err(e) => codec.send_message(&format!("Error running command '{}': {}", cmd.split_whitespace().next().unwrap_or("missing command"), e))?, // send error info
+                    Ok(ResponseType::File(mut f)) => {
+                        println!("Successfully ran command '{}' for {}", cmd_name, other);
+                        codec.send_message("Ok")?;
+                        codec.send_file(&mut f)?; // send file response
+                    }
+                    Ok(ResponseType::String(s)) => {
+                        println!("Successfully ran command '{}' for {}", cmd_name, other);
+                        codec.send_message("Ok")?;
+                        codec.send_message(&s)?; // send message response
+                    }
+                    Err(e) => {
+                        println!("Error running command '{}' for {}: {}", cmd_name, other, e);
+                        codec.send_message(&format!("Error running command '{}': {}", cmd_name, e))?; // send error info
+                    }
                 }
                 codec.set_timeout(0); // reset timeout to await further input
             },

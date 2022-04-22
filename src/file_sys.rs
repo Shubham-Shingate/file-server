@@ -33,19 +33,23 @@ impl Files{
     pub fn new() -> Files { Files{} } // new fileIO system
 
     pub fn call(&mut self, s: &str, a: Option<File>) -> Result<ResponseType> { // handles basic input from a string and, if attached, a file
+        let root = "file_root/".to_string(); // root folder to add before paths
         let mut s = s.split_whitespace();
-        match s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad function call"))? {
-            "read" => Ok(self.read_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "write" => Ok(self.write_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?, a.ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "move" => Ok(self.move_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?, s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "copy" => Ok(self.copy_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?, s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "del" => Ok(self.delete_file(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "mkdir" => Ok(self.make_directory(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "rmdir" => Ok(self.remove_directory(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "search" => Ok(self.search(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
-            "printdir" => Ok(self.handle_print_dir(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Bad parameter"))?)?.into()),
+        match s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing function call"))? {
+            "read" => Ok(self.read_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            "write" => Ok(self.write_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?), 
+                a.ok_or(Error::new(ErrorKind::InvalidInput, "Missing file parameter"))?)?.into()),
+            "move" => Ok(self.move_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
+                &(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing destination parameter"))?))?.into()),
+            "copy" => Ok(self.copy_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
+                &(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing destination parameter"))?))?.into()),
+            "del" => Ok(self.delete_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            "mkdir" => Ok(self.make_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            "rmdir" => Ok(self.remove_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            "search" => Ok(self.search(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing search term parameter"))?)?.into()),
+            "printdir" => Ok(self.handle_print_dir(&(root + s.next().unwrap_or("")))?.into()),
             "printhidden" => Ok(self.handle_print_hidden()?.into()),
-            _ => Err(Error::new(ErrorKind::InvalidInput, "Bad function call")),
+            _ => Err(Error::new(ErrorKind::InvalidInput, "Invalid function call")),
         }
     }
 
@@ -85,26 +89,28 @@ impl Files{
         Ok("Directory successfully removed!".to_string())
     }
     pub fn search(&self, term: &str) -> Result<String> { // returns a list
-        let p = fs::read_dir("fileIO system")?;
+        let root = "file_root/"; // root folder
+        let p = fs::read_dir(root)?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) { // return matching finds
-                r += &format!("{} ", i?.path().display());
+            if format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(term) { // return matching finds
+                r += &format!("{} ", i?.path().display()).trim_start_matches(root);
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") { // search recursively in unhidden directories
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(".") { // search recursively in unhidden directories
                 r += &self.subsearch(&format!("{}", i?.path().display()), term)?;
             }
         }
         Ok(r)
     }
     fn subsearch(&self, start: &str, term: &str) -> Result<String> { // recursive call of the basic search fn
+        let root = "file_root/"; // root folder
         let p = fs::read_dir(start)?;
         let mut r = String::new();
         for i in p {
-            if format!("{} ", i.as_ref().unwrap().path().display()).contains(term) { // return matching finds
-                r += &format!("{} ", i?.path().display());
+            if format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(term) { // return matching finds
+                r += &format!("{} ", i?.path().display()).trim_start_matches(root);
             } 
-            else if !format!("{} ", i.as_ref().unwrap().path().display()).contains(".") { // search recursively in unhidden directories
+            else if !format!("{} ", i.as_ref().unwrap().path().display()).trim_start_matches(root).contains(".") { // search recursively in unhidden directories
                 self.subsearch(&format!("{}", i?.path().display()), term)?;
             }
         }
@@ -126,12 +132,10 @@ impl Files{
     }
     pub fn handle_print_dir(&self, dir_path: &str) -> Result<String> { // print a directory
         if self.find_dir(dir_path) { // check directory validity
-            let mut s: String = "dir specified: ".to_string() + dir_path + " "; // initialize result string
-            s += &fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + " ")).collect::<String>(); // add dir contents to result string
-            Ok(s) // return list
+            Ok(fs::read_dir(dir_path)?.filter_map(|x| Some(x.unwrap().path().display().to_string() + " ")).collect::<String>()) // add dir contents to result string
         }
         else{
-            Err(Error::new(ErrorKind::AddrNotAvailable, "Bad directory")) // invalid directory
+            Err(Error::new(ErrorKind::AddrNotAvailable, "Inalid directory")) // invalid directory message
         }
     }
 }
