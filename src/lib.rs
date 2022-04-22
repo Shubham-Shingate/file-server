@@ -36,14 +36,17 @@ impl PgPersistance {
         return all_accounts;
     }
  
-    pub fn find_by_username(connection: &PgConnection, usr_name: &str) -> Account {
+    pub fn find_by_username(connection: &PgConnection, usr_name: &str) -> Option<Account> {
         use schema::accounts::dsl::*;
 
         let acc_found: Vec<Account> = accounts
                                         .filter(username.eq(usr_name))
-                                        .load::<Account>(connection)
-                                        .expect("Error loading the user account");
-        return acc_found[0].clone();
+                                        .load::<Account>(connection).unwrap();
+        if acc_found.len() == 0 {
+            Option::None
+        } else{
+            Option::Some(acc_found[0].clone())
+        }
     }
 
     //This is just fetching all file paths from PostGreSQL DB (not the actual file as its stored in file system)

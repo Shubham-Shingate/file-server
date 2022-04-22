@@ -63,6 +63,51 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
     codec.send_message(&msg)?;
     println!("Initial handshake was successful !!");
 
+    let mut logged_in = false;
+    let mut session_user_name = String::from("");
+
+    while !logged_in {
+       let choice = codec.read_message()?;
+
+       match choice.as_str() {
+           "1" => {
+               //Read acc creation info
+               let username = codec.read_message()?;
+               let password = codec.read_message()?;
+               let email = codec.read_message()?;
+               //Create a new account in accounts table
+               PgPersistance::save_new_acc(&conn, username, password, email);
+           },
+           "2" => {
+                //Read the login credentials
+                let username = codec.read_message()?;
+                let password = codec.read_message()?;
+                //Check password with DB records.
+                let acct = PgPersistance::find_by_username(&conn, username.as_str());
+                if acct.is_none() {
+                    println!("Invalid username, no account found for this username");
+                    codec.send_message("Failure")?;
+                    codec.send_message("Invalid username, no account found for this username")?;
+                    continue;
+                }
+                let account = acct.unwrap();
+                if password == account.password {
+                    logged_in = true;
+                    session_user_name = account.username;
+                    println!("Login successfull, session began for user: {}", &session_user_name);
+                    codec.send_message("Success")?;
+                } else {
+                    println!("Invalid password");
+                    codec.send_message("Failure")?;
+                    codec.send_message("Invalid Password")?;
+                }
+           },
+           _ => {
+                println!("Invalid Choice");
+            }
+       }
+    }
+
     loop {
         msg = codec.read_message()?;
         let cmd_vec: Vec<&str> = msg.split(" ").collect();
