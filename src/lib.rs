@@ -6,7 +6,7 @@ mod schema;
 
 use diesel::prelude::*;
 use diesel::PgConnection;
-use models::{Account, NewAccount, FileEntity, NewFileEntity};
+use models::{Account, NewAccount, FileEntity, NewFileEntity, AccountsFileMapping, NewAccountsFileMapping};
 
 pub struct PgPersistance {}
 
@@ -18,13 +18,13 @@ impl PgPersistance {
         return db_connection;
     }
 
-    pub fn save_new_acc(connection: &PgConnection, username: String, password: String, email: String) {
+    pub fn save_new_acc(connection: &PgConnection, username: String, password: String, email: String) -> Account {
         use schema::accounts;
         let new_acc = NewAccount::new(username, password, email);
         diesel::insert_into(accounts::table)
                     .values(&new_acc)
                     .get_result::<Account>(&*connection)
-                    .expect("Error adding new account");
+                    .expect("Error adding new account")
     }
     
     pub fn find_all_acc(connection: &PgConnection) -> Vec<Account> {
@@ -63,11 +63,22 @@ impl PgPersistance {
     pub fn save_new_file(connection: &PgConnection, filepath: String) {
         use schema::fileentity;
 
-        let new_file_path = NewFileEntity::new(filepath);
+        let new_file_entity = NewFileEntity::new(filepath);
         diesel::insert_into(fileentity::table)
-                    .values(&new_file_path)
+                    .values(&new_file_entity)
                     .get_result::<FileEntity>(&*connection)
                     .expect("Error adding new file path");
+
+    }
+
+    pub fn save_new_acc_file_mapping(connection: &PgConnection, user_id: i32, file_id: i32, permissions: String) {
+        use schema::accounts_file_mapping;
+
+        let new_acc_file_mapping = NewAccountsFileMapping::new(user_id, file_id, permissions);
+        diesel::insert_into(accounts_file_mapping::table)
+                    .values(&new_acc_file_mapping)
+                    .get_result::<AccountsFileMapping>(&*connection)
+                    .expect("Error adding a new account-file mapping");
 
     }
 

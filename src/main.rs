@@ -76,7 +76,11 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
                let password = codec.read_message()?;
                let email = codec.read_message()?;
                //Create a new account in accounts table
-               PgPersistance::save_new_acc(&conn, username, password, email);
+               let acc_saved = PgPersistance::save_new_acc(&conn, username, password, email);
+               let mut files = PgPersistance::find_all_files(&conn);
+               files.iter_mut().for_each(|x| {
+                   PgPersistance::save_new_acc_file_mapping(&conn, acc_saved.user_id, x.file_id, String::from("RW"));
+               });
            },
            "2" => {
                 //Read the login credentials

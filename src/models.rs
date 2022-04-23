@@ -1,6 +1,8 @@
 use crate::schema::accounts;
 use crate::schema::fileentity;
+use crate::schema::accounts_file_mapping;
 
+//Model i.e Entity for Account
 #[derive(Queryable, Clone, Debug)]
 pub struct Account {
     pub user_id: i32,
@@ -27,14 +29,14 @@ impl NewAccount {
     }
 }
 
-//Siva
-#[derive(Queryable)]
+//Model i.e Entity for FileEntity
+#[derive(Queryable, Clone, Debug)]
 pub struct FileEntity {
     pub file_id: i32,
     pub filepath: String,
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Clone, Debug)]
 #[table_name = "fileentity"]
 pub struct NewFileEntity {
     pub filepath: String
@@ -44,6 +46,33 @@ impl NewFileEntity {
     pub fn new(filepath: String) -> NewFileEntity {
         NewFileEntity {
             filepath
+        }
+    }
+}
+
+//Model i.e Entity for AccountsFileMapping
+#[derive(Queryable, Clone, Debug)]
+pub struct AccountsFileMapping {
+    pub mapping_id: i32,
+    pub user_id: i32,
+    pub file_id: i32,
+    pub permissions: String,
+}
+
+#[derive(Insertable, Clone, Debug)]
+#[table_name = "accounts_file_mapping"]
+pub struct NewAccountsFileMapping {
+    pub user_id: i32,
+    pub file_id: i32,
+    pub permissions: String
+}
+
+impl NewAccountsFileMapping {
+    pub fn new(user_id: i32, file_id: i32, permissions: String) -> NewAccountsFileMapping {
+        NewAccountsFileMapping {
+            user_id,
+            file_id,
+            permissions
         }
     }
 }
