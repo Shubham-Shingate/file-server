@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //Tester
 pub const HELLO: &str = "Hello";
 

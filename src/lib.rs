@@ -21,11 +21,11 @@ impl LinesCodec {
     }
 
     // change read timeout, used for attachment checks
-    pub fn set_timeout(&mut self, time: u64) {
+    pub fn set_timeout(&mut self, time: u64) -> io::Result<()> {
         match time{
             0 => self.reader.get_mut().set_read_timeout(None), // reset
             _ => self.reader.get_mut().set_read_timeout(Some(Duration::from_secs(time))),
-        };
+        }
     }
 
     /// Write the given message (appending a newline) to the TcpStream
