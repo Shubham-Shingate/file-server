@@ -60,27 +60,60 @@ impl PgPersistance {
     }
 
     //This is just saving a new file path to PostGreSQL DB (not the actual file as its stored in file system)
-    pub fn save_new_file(connection: &PgConnection, filepath: String) {
+    pub fn save_new_file(connection: &PgConnection, filepath: String) -> FileEntity {
         use schema::fileentity;
 
         let new_file_entity = NewFileEntity::new(filepath);
         diesel::insert_into(fileentity::table)
                     .values(&new_file_entity)
                     .get_result::<FileEntity>(&*connection)
-                    .expect("Error adding new file path");
+                    .expect("Error adding new file path")
 
     }
 
-    pub fn save_new_acc_file_mapping(connection: &PgConnection, user_id: i32, file_id: i32, permissions: String) {
+    pub fn find_by_filepath(connection: &PgConnection, file_path: &str) -> Option<FileEntity> {
+        use schema::fileentity::dsl::*;
+
+        let file_found: Vec<FileEntity> = fileentity.filter(filepath.eq(file_path))
+                                                    .load::<FileEntity>(connection).unwrap();
+        if file_found.len() == 0 {
+           Option::None
+        } else {
+            Option::Some(file_found[0].clone())
+        }
+    }
+
+    pub fn save_new_acc_file_mapping(connection: &PgConnection, user_id: i32, file_id: i32, permissions: String) -> AccountsFileMapping {
         use schema::accounts_file_mapping;
 
         let new_acc_file_mapping = NewAccountsFileMapping::new(user_id, file_id, permissions);
         diesel::insert_into(accounts_file_mapping::table)
                     .values(&new_acc_file_mapping)
                     .get_result::<AccountsFileMapping>(&*connection)
-                    .expect("Error adding a new account-file mapping");
+                    .expect("Error adding a new account-file mapping")
 
     }
 
+    pub fn find_by_acc_file(connection: &PgConnection, userid: i32, fileid: i32) -> Option<AccountsFileMapping> {
+        use schema::accounts_file_mapping::dsl::*; 
+
+        let mapping: Vec<AccountsFileMapping> = accounts_file_mapping.filter(user_id.eq(userid)).filter(file_id.eq(fileid))
+                                                .load::<AccountsFileMapping>(connection).unwrap();
+        
+        if mapping.len() == 0 {
+            Option::None
+        } else {
+            Option::Some(mapping[0].clone())
+        }
+    }
+
+    pub fn is_authorized(connection: &PgConnection, user_name: &str, file_path: &str, permissions: &str) -> bool {
+        
+        let acc = PgPersistance::find_by_username(connection, user_name).unwrap();
+        let file = PgPersistance::find_by_filepath(connection, file_path).unwrap();
+
+        let mapping = PgPersistance::find_by_acc_file(connection, acc.user_id, file.file_id).unwrap();
+        mapping.permissions.eq(permissions)
+    }
 
 }

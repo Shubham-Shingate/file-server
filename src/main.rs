@@ -146,9 +146,27 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
             file_ops::make_dir(&(String::from(current_dir)+"/"+cmd_vec[1]))?;
             codec.send_message("Success")?;
         } else if cmd_vec[0] == constants::PUT_FILE {
-            let file_data = codec.read_message()?;
-            file_ops::write_file(&(String::from(current_dir)+"/"+cmd_vec[1]), &file_data)?;
-            codec.send_message("Success")?;
+            let file_path = String::from(current_dir)+"/"+cmd_vec[1];
+            let file_data = codec.read_file_socket()?;
+            
+            let file_entity = PgPersistance::find_by_filepath(&conn, &file_path);
+            
+            if file_entity.is_none() { //File Path does not exist in DB, create one and map it to all users
+                file_ops::write_file(&file_path, &file_data)?;
+                let fileentity = PgPersistance::save_new_file(&conn, file_path);
+                let mut accounts = PgPersistance::find_all_acc(&conn);
+                accounts.iter_mut().for_each(|acc| {
+                    PgPersistance::save_new_acc_file_mapping(&conn, acc.user_id, fileentity.file_id, "RW".to_owned());
+                });
+                codec.send_message("Success")?;
+            } else { //File exists, check for permissions
+                if PgPersistance::is_authorized(&conn, &session_user_name, &file_path, "RW") {
+                    file_ops::write_file(&file_path, &file_data)?;
+                    codec.send_message("Success")?;
+                } else {
+                    codec.send_message("Failure: Unauthorized to write this file")?;
+                }
+            }
         }
     }
 
