@@ -1,9 +1,8 @@
 mod constants;
-mod file_sys;
 mod util;
+mod file_ops;
 
 use file_server::PgPersistance;
-use file_sys::Files;
 use util::LinesCodec;
 
 use std::fs::ReadDir;
@@ -44,6 +43,9 @@ fn handle_print_hidden() -> Vec<walkdir::DirEntry> {
 }
 
 fn handle_client(stream: TcpStream) -> io::Result<()> {
+    file_ops::make_dir(constants::SERVER_FILE_STORAGE)?;
+    let current_dir = constants::SERVER_FILE_STORAGE;
+
     //Establish a DB Connection
     let conn = PgPersistance::get_connection();
     
@@ -140,8 +142,9 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
                 } 
             }
             codec.send_message(&result_str)?;
-        } else {
-            
+        } else if cmd_vec[0] == constants::MAKE_DIR {
+            file_ops::make_dir(&(String::from(current_dir)+"/"+cmd_vec[1]))?;
+            codec.send_message("Success")?;
         }
     }
 
@@ -149,7 +152,8 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
 }
 
 fn main() {
-    let mut db = Files::new();
+    //let mut db = Files::new();
+    
     let listener = TcpListener::bind("localhost:3333").unwrap();
     // accept connections and process them, spawning a new thread for each one
     println!("Server listening on port 3333");

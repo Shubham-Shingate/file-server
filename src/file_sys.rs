@@ -1,201 +1,168 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io;
+#![allow(dead_code)]
+// broad usage
+use std::fs::{File, OpenOptions};
 use std::io::*;
 use std::path::Path;
 use std::fs;
+// used for hidden dir file op
+use walkdir::DirEntry as WalkDirEntry;
+use walkdir::WalkDir;
+// used for folder root & command names
+#[path = "constants.rs"] mod constants;
+use constants as consts;
 
-struct FileInfo{
-    filepath: String,
-    permissions: HashMap<String, Permission>
+#[derive(Clone)]
+pub struct Files; // fileIO system reference
+
+pub enum ResponseType { // handles different return types
+    File(File),
+    String(String),
 }
 
-#[derive(PartialEq)]
-enum Permission{
-    Owner,
-    Read,
-    Write,
-}
-
-struct FileRqst{
-    user: String,
-    filepath: String,
-    rqst_tp: Request,
-}
-
-enum Request{
-    Read,
-    Write(File),
-    Del,
-    Copy(String/*new path*/),
-}
-
-impl FileInfo{
-    fn has_permission(&self, u: &String, p: &Permission) -> bool{ // check if user has permissions
-        match self.permissions.get(u){
-            Some(Permission::Owner) => true,
-            Some(Permission::Read) if p == &Permission::Read => true,
-            Some(Permission::Write) if p != &Permission::Owner => true,
-            _ => false,
-        }
-    }
-    fn new(filename: String, filepath: String, o: String) -> FileInfo{
-        let mut permissions = HashMap::new();
-        permissions.insert(o, Permission::Owner);
-        FileInfo{
-            filepath,
-            permissions
-        }
+impl From<File> for ResponseType { // embed given file into response
+    fn from(f: File) -> Self {
+        ResponseType::File(f)
     }
 }
 
-pub struct Files{
-    files: Vec<FileInfo>,
+impl From<String> for ResponseType { // embed given string into response
+    fn from(s: String) -> Self {
+        ResponseType::String(s)
+    }
 }
 
 impl Files{
-    pub fn new() -> Files{
-        Files{
-            files: Vec::new()
+    pub fn new() -> Files { Files{} } // new fileIO system
+
+    // handles basic input from a string and, if attached, a file
+    pub fn call(s: &str, a: Option<File>) -> Result<ResponseType> {
+        let root = consts::ROOT.to_string(); // root folder to add before paths
+        let mut s = s.split_whitespace();
+        match s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing function call"))? {
+            consts::READ => Ok(Files::read_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::WRITE => Ok(Files::write_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?), 
+                a.ok_or(Error::new(ErrorKind::InvalidInput, "Missing file parameter"))?)?.into()),
+            consts::MOVE => Ok(Files::move_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
+                &(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing destination parameter"))?))?.into()),
+            consts::COPY => Ok(Files::copy_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
+                &(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing destination parameter"))?))?.into()),
+            consts::DELETE => Ok(Files::delete_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::MAKE_DIR => Ok(Files::make_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::REMOVE_DIR => Ok(Files::remove_directory(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
+            consts::SEARCH => Ok(Files::search(s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing search term parameter"))?)?.into()),
+            consts::PRINT_DIR => Ok(Files::handle_print_dir(&(root + s.next().unwrap_or("")))?.into()),
+            consts::PRINT_HIDDEN => Ok(Files::handle_print_hidden()?.into()),
+            _ => Err(Error::new(ErrorKind::InvalidInput, "Invalid function call")),
         }
     }
-    fn find(&self, s: &String) -> Option<&FileInfo>{
-        for i in &self.files{
-            if s == &i.filepath{
-                return Some(i)
+
+    // calls a specific function with parameters as a string
+    // For input: 
+        // func should be the function constant for the desired function call
+        // params should be the rest of the call string
+    pub fn call_fn(func: &str, params: &str) -> Result<ResponseType> {
+        let root = consts::ROOT.to_string(); // root folder to add before paths
+        let mut s = params.split_whitespace();
+        match func {
+            consts::WRITE => Ok(Files::write_file_from_str(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?),
+                //params.split_once(' ').unwrap_or(("","")).1)?.into()),  // missing file writes empty file
+                params.split_once(' ').ok_or(Error::new(ErrorKind::InvalidInput, "Missing file parameter"))?.1)?.into()), // missing file cancels write
+            _ => Files::call(&(func.to_string() + " " + &params), None),
+        }
+    }
+
+    pub fn find_dir(path: &str) -> bool { // find a directory in fileIO system
+        fs::read_dir(Path::new(path)).is_ok()
+    }
+    pub fn find_file(path: &str) -> bool { // find a file in fileIO system
+        OpenOptions::new().open(Path::new(&path)).is_ok()
+    }
+    pub fn read_file(path: &str) -> Result<File> { // read from file
+        Ok(OpenOptions::new().read(true).open(Path::new(&path))?)
+    }
+    pub fn write_file(path: &str, mut ct: File) -> Result<File> { // write to file
+        let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&path))?;
+        copy(&mut ct, &mut file)?;
+        Ok(OpenOptions::new().read(true).open(Path::new(&path))?)
+    }
+    pub fn write_file_from_str(path: &str, ct: &str) -> Result<File> { // write to file
+        let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&path))?;
+        file.write_all(ct.as_bytes())?;
+        Ok(OpenOptions::new().read(true).open(Path::new(&path))?)
+    }
+    pub fn copy_file(old_path: &str, new_path: &str) -> Result<File> { // copy original to new location
+        let file = OpenOptions::new().read(true).write(true).create(false).open(Path::new(old_path))?;
+        Files::write_file(new_path, file)
+    }
+    pub fn move_file(old_path: &str, new_path: &str) -> Result<File> { // copy original to new location, then delete original
+        Files::copy_file(old_path, new_path)?;
+        Files::delete_file(old_path)?;
+        OpenOptions::new().read(true).open(Path::new(old_path))
+    }
+    pub fn delete_file(path: &str) -> Result<String> { // remove file
+        fs::remove_file(Path::new(path))?;
+        Ok("File deleted successfully!".to_string())
+    }
+    pub fn make_directory(path: &str) -> Result<String> { // add directory
+        fs::create_dir_all(Path::new(path))?;
+        Ok("Directory successfully created!".to_string())
+    }
+    pub fn remove_directory(path: &str) -> Result<String> { // remove directory
+        fs::remove_dir_all(Path::new(path))?;
+        Ok("Directory successfully removed!".to_string())
+    }
+    pub fn search(term: &str) -> Result<String> { // returns a list
+        let root = consts::ROOT; // root folder
+        let p = fs::read_dir(root)?;
+        let mut r = String::new();
+        for i in p {
+            if i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(term) { // return matching finds
+                r += &format!("{} ", i?.path().display()).trim_start_matches(root);
+            } 
+            else if !i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(".") { // search recursively in unhidden directories
+                r += &Files::subsearch(&i?.path().display().to_string(), term)?;
             }
         }
-        None
+        Ok(r)
     }
-    pub fn file_rqst(&mut self, rqst: FileRqst) -> std::result::Result<File, &str>{
-        match &rqst.rqst_tp {
-            Request::Read => {
-                if let Some(ref x) = self.find(&rqst.filepath){
-                    if x.has_permission(&rqst.user, &Permission::Read){
-                        match File::open(Path::new(&rqst.filepath)){
-                            Ok(x) => Ok(x),
-                            Err(..) => Err("File not found"),
-                        }
-                    }
-                    else{
-                        Err("You do not have permission to access this file")
-                    }
-                }
-                else{
-                    Err("File not in system")
-                }
-            },
-            Request::Write(a) => { 
-                let a = BufReader::new(a);
-                if let Some(ref x) = self.find(&rqst.filepath){
-                    if x.has_permission(&rqst.user, &Permission::Write){
-                        let mut file = match File::create(Path::new(&rqst.filepath)){
-                            Ok(x) => Ok(x),
-                            Err(..) => Err("Could not create"),
-                        };
-                        if let Ok(ref mut x) = file{
-                            return match x.write_all(&a.buffer()) {
-                                Ok(..) => file,
-                                Err(..) => Err("Writing Failed")
-                            }
-                        }
-                        file
-                    }
-                    else{
-                        Err("You do not have permission to access this file")
-                    }
-                }
-                else {
-                    let mut file = match File::create(Path::new(&rqst.filepath)){
-                        Ok(x) => Ok(x),
-                        Err(..) => Err("Could not create"),
-                    };
-                    if let Ok(ref mut x) = file{
-                        return match x.write_all(&a.buffer()) {
-                            Ok(..) => {
-                                self.files.push(FileInfo::new(rqst.filepath.clone(), rqst.filepath.clone(), rqst.user.clone()));
-                                file
-                            },
-                            Err(..) => Err("Writing Failed")
-                        }
-                    }
-                    file
-                }
-            },
-            Request::Copy(new_path) => {
-                if let Some(x) = self.find(&rqst.filepath){
-                    if x.has_permission(&rqst.user, &Permission::Write){
-                        let mut ofile = match File::open(Path::new(&rqst.filepath)){
-                            Ok(x) => Ok(x),
-                            Err(..) => Err("Could not open file to copy"),
-                        };
-                        if let Ok(x) = ofile{
-                            let x = BufReader::new(x);
-                            if let Some(ref y) = self.find(new_path){
-                                if y.has_permission(&rqst.user, &Permission::Write){
-                                    let mut nfile = match File::create(Path::new(&new_path)){
-                                        Ok(y) => Ok(y),
-                                        Err(..) => Err("Could not create file"),
-                                    };
-                                    if let Ok(ref mut y) = nfile{
-                                        return match y.write_all(&x.buffer()) {
-                                            Ok(..) => nfile,
-                                            Err(..) => Err("Writing Failed")
-                                        };
-                                        //self.files.push(FileInfo::new(new_path.clone(), new_path.clone(), rqst.user.clone()));
-                                    }
-                                    nfile
-                                }
-                                else{
-                                    Err("Protected file already in target location")
-                                }
-                            }
-                            else {
-                                let mut nfile = match File::create(Path::new(&new_path)){
-                                    Ok(y) => Ok(y),
-                                    Err(..) => Err("Could not create file"),
-                                };
-                                if let Ok(ref mut y) = nfile{
-                                    
-                                    return match y.write_all(&x.buffer()) {
-                                        Ok(..) => {
-                                            self.files.push(FileInfo::new(new_path.clone(), new_path.clone(), rqst.user.clone()));
-                                            nfile
-                                        },
-                                        Err(..) => Err("Writing Failed")
-                                    };
-                                }
-                                nfile
-                            }
-                        }
-                        else{
-                            ofile
-                        }
-                    }
-                    else{
-                        Err("You do not have permission to access this file")
-                    }
-                }
-                else {
-                    Err("No file to copy")
-                }
-            },
-            Request::Del => {
-                if let Some(ref x) = self.find(&rqst.filepath){
-                    if x.has_permission(&rqst.user, &Permission::Write){
-                        fs::remove_file(rqst.filepath).unwrap_or_else(|e| {println!("{:?}", e.kind())});
-                        //self.files.swap_remove();
-                        Err("File deleted")
-                    }
-                    else{
-                        Err("You do not have permission to access this file")
-                    }
-                }
-                else{
-                    Err("No file to delete")
-                }
-                
-            },
+    fn subsearch(start: &str, term: &str) -> Result<String> { // recursive call of the basic search fn
+        let root = consts::ROOT; // root folder
+        let p = fs::read_dir(start)?;
+        let mut r = String::new();
+        for i in p {
+            if i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(term) { // return matching finds
+                r += &format!("{} ", i?.path().display()).trim_start_matches(root);
+            } 
+            else if !i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(".") { // search recursively in unhidden directories
+                Files::subsearch(&i?.path().display().to_string(), term)?;
+            }
+        }
+        Ok(r)
+    }
+    pub fn handle_print_hidden() -> Result<String> { // walk current directory and print all hidden (.) directories and files
+        let ignore = vec![".", ".git", ".workflows", ".gitignore"];
+        Ok(WalkDir::new(".").into_iter()
+            .filter_entry(|e| Files::is_hidden(e)) // filter hidden only
+            .filter_map(|v| Some(v.ok()?.file_name().to_str()?.to_string() + " ")) // string conversion
+            .filter(|x| !ignore.contains(&x.trim())) // filter ignored
+            .collect())
+    }
+    fn is_hidden(entry: &WalkDirEntry) -> bool { // returns true if file or directory is hidden; false otherwise
+        entry.file_name()
+            .to_str()
+            .map(|s| s.starts_with("."))
+            .unwrap_or(false)
+    }
+    pub fn handle_print_dir(dir_path: &str) -> Result<String> { // print a directory
+        let root = consts::ROOT; // root folder
+        if Files::find_dir(dir_path) { // check directory validity
+            Ok(fs::read_dir(dir_path)? // add dir contents to result string & return it
+                .filter_map(|x| Some(x.unwrap().path().display().to_string().trim_start_matches(root).to_string() + " "))
+                .collect::<String>()
+            )
+        }
+        else{
+            Err(Error::new(ErrorKind::AddrNotAvailable, "Inalid directory")) // invalid directory message
         }
     }
 }
