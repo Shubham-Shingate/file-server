@@ -145,6 +145,10 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
         } else if cmd_vec[0] == constants::MAKE_DIR {
             file_ops::make_dir(&(String::from(current_dir)+"/"+cmd_vec[1]))?;
             codec.send_message("Success")?;
+        } else if cmd_vec[0] == constants::PUT_FILE {
+            let file_data = codec.read_message()?;
+            file_ops::write_file(&(String::from(current_dir)+"/"+cmd_vec[1]), &file_data)?;
+            codec.send_message("Success")?;
         }
     }
 

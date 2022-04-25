@@ -6,6 +6,7 @@ pub const PRINT_DIR: &str = "printdir";
 pub const QUIT: &str = "quit";
 pub const PRINT_HIDDEN: &str = "printhidden";
 pub const MAKE_DIR: &str = "mkdir";  
+pub const PUT_FILE: &str = "put"; //Note: This is to add a new file or update the existing
 
 
 
