@@ -36,14 +36,14 @@ fn handle_client(stream: TcpStream) -> std::io::Result<()> {
     codec.send_message(&msg)?;
     println!("Initial handshake with {} was successful !!", other);
     loop { // basic command response loop
-        match codec.read_message() { // command
-            Ok(cmd) if &cmd == constants::QUIT => break, // end conncetion
-            Ok(cmd) => { // run command from file_sys
+        match &codec.read_message()?[..] { // command
+            constants::QUIT => break, // end conncetion
+            cmd => { // run command from file_sys
                 let cmd_name = cmd.split_whitespace().next().unwrap_or("missing command");
                 println!("Attempting to run command '{}' for {}...", cmd_name, other);
                 codec.set_timeout(1)?; // check for file attachment
-                let attachment = codec.read_file();
-                println!("Attached: {:?}", attachment);
+                let attachment = codec.read_file_to_str();
+                println!("Attachment error: {:?}", attachment);
                 match Files::call(&cmd, attachment.ok()) { // make fn call
                     Ok(ResponseType::File(mut f)) => {
                         println!("Successfully ran command '{}' for {}", cmd_name, other);
@@ -62,9 +62,6 @@ fn handle_client(stream: TcpStream) -> std::io::Result<()> {
                 }
                 codec.set_timeout(0)?; // reset timeout to await further input
             },
-            Err(e) => {
-                return Err(e) // report error
-            }
         }
     }
     println!("disconnecting from {}", other); // server-side disconnect notice w/ client info

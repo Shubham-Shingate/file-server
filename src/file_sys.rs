@@ -35,13 +35,13 @@ impl Files{
     pub fn new() -> Files { Files{} } // new fileIO system
 
     // handles basic input from a string and, if attached, a file
-    pub fn call(s: &str, a: Option<File>) -> Result<ResponseType> {
+    pub fn call(s: &str, a: Option<String>) -> Result<ResponseType> {
         let root = consts::ROOT.to_string(); // root folder to add before paths
         let mut s = s.split_whitespace();
         match s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing function call"))? {
             consts::READ => Ok(Files::read_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?))?.into()),
-            consts::WRITE => Ok(Files::write_file(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?), 
-                a.ok_or(Error::new(ErrorKind::InvalidInput, "Missing file parameter"))?)?.into()),
+            consts::WRITE => Ok(Files::write_file_from_str(&(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing path parameter"))?), 
+                &a.ok_or(Error::new(ErrorKind::InvalidInput, "Missing file parameter"))?)?.into()),
             consts::MOVE => Ok(Files::move_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
                 &(root + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing destination parameter"))?))?.into()),
             consts::COPY => Ok(Files::copy_file(&(root.clone() + s.next().ok_or(Error::new(ErrorKind::InvalidInput, "Missing origin parameter"))?), 
