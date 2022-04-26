@@ -167,6 +167,12 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
                     codec.send_message("Failure: Unauthorized to write this file")?;
                 }
             }
+        } else if cmd_vec[0] == constants::GET_FILE {
+            let file_path = String::from(current_dir)+"/"+cmd_vec[1];
+            let file_data = file_ops::read_file(&file_path)?;
+            codec.send_message(&file_data)?;
+            codec.send_message("e*-of")?;
+            
         }
     }
 
