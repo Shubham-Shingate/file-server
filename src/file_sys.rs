@@ -97,7 +97,7 @@ impl Files{
     pub fn move_file(old_path: &str, new_path: &str) -> Result<File> { // copy original to new location, then delete original
         Files::copy_file(old_path, new_path)?;
         Files::delete_file(old_path)?;
-        OpenOptions::new().read(true).open(Path::new(old_path))
+        OpenOptions::new().read(true).open(Path::new(new_path))
     }
     pub fn delete_file(path: &str) -> Result<String> { // remove file
         fs::remove_file(Path::new(path))?;
@@ -119,7 +119,7 @@ impl Files{
             if i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(term) { // return matching finds
                 r += &format!("{} ", i?.path().display()).trim_start_matches(root);
             } 
-            else if !i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(".") { // search recursively in unhidden directories
+            else if fs::metadata(i.as_ref().unwrap().path().display().to_string())?.is_dir() { // search recursively in unhidden directories
                 r += &Files::subsearch(&i?.path().display().to_string(), term)?;
             }
         }
@@ -133,7 +133,7 @@ impl Files{
             if i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(term) { // return matching finds
                 r += &format!("{} ", i?.path().display()).trim_start_matches(root);
             } 
-            else if !i.as_ref().unwrap().path().display().to_string().trim_start_matches(root).contains(".") { // search recursively in unhidden directories
+            else if fs::metadata(i.as_ref().unwrap().path().display().to_string())?.is_dir() { // search recursively in unhidden directories
                 Files::subsearch(&i?.path().display().to_string(), term)?;
             }
         }

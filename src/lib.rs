@@ -58,23 +58,23 @@ impl LinesCodec {
         Ok(file) // return tempfile
     }
 
-    // Write the given file (appending a newline) to the TcpStream
+    // Write the given file to the TcpStream
     pub fn send_file_as_str(&mut self, file: &mut File) -> io::Result<()> {
         let mut s = String::new();
         file.read_to_string(&mut s)?;
-        while let Some(offset) = s.find('\n') {
+        while let Some(offset) = s.find('\n') { // reformat string to remove newlines
             s.replace_range(offset..offset+1, "#newline#")
         }
-        self.send_message(&s)?;
+        self.send_message(&s)?; // send reformatted message over socket
         Ok(())
     }
 
     // Read a received file from the TcpStream
-    pub fn read_file_to_str(&mut self) -> io::Result<String> {
+    pub fn read_file_as_str(&mut self) -> io::Result<String> {
         let mut s = self.read_message()?;
-        while let Some(offset) = s.find("#newline#") {
+        while let Some(offset) = s.find("#newline#") { // reformat string to add back newlines
             s.replace_range(offset..offset+"#newline#".len(), "\n")
         }
-        Ok(s) // return tempfile
+        Ok(s) // return reformatted string
     }
 }

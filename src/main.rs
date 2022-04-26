@@ -42,13 +42,15 @@ fn handle_client(stream: TcpStream) -> std::io::Result<()> {
                 let cmd_name = cmd.split_whitespace().next().unwrap_or("missing command");
                 println!("Attempting to run command '{}' for {}...", cmd_name, other);
                 codec.set_timeout(1)?; // check for file attachment
-                let attachment = codec.read_file_to_str();
-                println!("Attachment error: {:?}", attachment);
+                let attachment = codec.read_file_as_str();
+                if &cmd == &constants::WRITE && attachment.is_err() {
+                    println!("Attachment error: {:?}", attachment);
+                }
                 match Files::call(&cmd, attachment.ok()) { // make fn call
                     Ok(ResponseType::File(mut f)) => {
                         println!("Successfully ran command '{}' for {}", cmd_name, other);
                         codec.send_message("Ok")?;
-                        codec.send_file(&mut f)?; // send file response
+                        codec.send_file_as_str(&mut f)?; // send file response
                     }
                     Ok(ResponseType::String(s)) => {
                         println!("Successfully ran command '{}' for {}", cmd_name, other);
