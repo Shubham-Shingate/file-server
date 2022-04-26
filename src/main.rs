@@ -172,7 +172,10 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
             let file_data = file_ops::read_file(&file_path)?;
             codec.send_message(&file_data)?;
             codec.send_message("e*-of")?;
-            
+
+        } else if cmd_vec[0] == constants::REMOVE_FILE {
+            file_ops::remove_file(&(String::from(current_dir)+"/"+cmd_vec[1]))?;
+            codec.send_message("Success")?;
         }
     }
 

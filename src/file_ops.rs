@@ -26,3 +26,9 @@ pub fn write_file(file_name: &str, file_data: &str) -> io::Result<()> {
     Ok(())
 }
 
+pub fn remove_file(file_name: &str) -> io::Result<()> {
+    fs::remove_file(file_name)?;
+    println!("File is removed successfully");
+    Ok(())
+}
+
