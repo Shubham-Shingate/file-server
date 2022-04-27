@@ -114,6 +114,7 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
        }
     }
 
+
     loop {
         msg = codec.read_message()?;
         let cmd_vec: Vec<&str> = msg.split(" ").collect();
