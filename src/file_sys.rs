@@ -85,19 +85,20 @@ impl Files{
         copy(&mut ct, &mut file)?;
         Ok(OpenOptions::new().read(true).open(Path::new(&path))?)
     }
-    pub fn write_file_from_str(path: &str, ct: &str) -> Result<File> { // write to file
+    pub fn write_file_from_str(path: &str, ct: &str) -> Result<String> { // write to file
         let mut file = OpenOptions::new().read(true).write(true).create(true).open(Path::new(&path))?;
         file.write_all(ct.as_bytes())?;
-        Ok(OpenOptions::new().read(true).open(Path::new(&path))?)
+        Ok(format!("File successfully written to '{}'", path))
     }
-    pub fn copy_file(old_path: &str, new_path: &str) -> Result<File> { // copy original to new location
+    pub fn copy_file(old_path: &str, new_path: &str) -> Result<String> { // copy original to new location
         let file = OpenOptions::new().read(true).write(true).create(false).open(Path::new(old_path))?;
-        Files::write_file(new_path, file)
+        Files::write_file(new_path, file)?;
+        Ok(format!("File successfully copied from '{}' to '{}'", old_path, new_path))
     }
-    pub fn move_file(old_path: &str, new_path: &str) -> Result<File> { // copy original to new location, then delete original
+    pub fn move_file(old_path: &str, new_path: &str) -> Result<String> { // copy original to new location, then delete original
         Files::copy_file(old_path, new_path)?;
         Files::delete_file(old_path)?;
-        OpenOptions::new().read(true).open(Path::new(new_path))
+        Ok(format!("File successfully moved from '{}' to '{}'", old_path, new_path))
     }
     pub fn delete_file(path: &str) -> Result<String> { // remove file
         fs::remove_file(Path::new(path))?;
