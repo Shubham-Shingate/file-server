@@ -187,8 +187,21 @@ fn handle_client(stream: TcpStream) -> io::Result<()> {
                 codec.send_message("Failure: File does not exist in cwd")?;
             }
         } else if cmd_vec[0] == constants::REMOVE_FILE {
-            file_ops::remove_file(&(String::from(current_dir)+"/"+cmd_vec[1]))?;
-            codec.send_message("Success")?;
+            let file_path = String::from(current_dir)+"/"+cmd_vec[1];
+
+           //Check if file exists on this file_path
+           let file_entity = PgPersistance::find_by_filepath(&conn, &file_path);
+
+           if !file_entity.is_none() { //The requested file exists
+                if PgPersistance::is_authorized(&conn, &session_user_name, &file_path, "RW") {
+                    file_ops::remove_file(&file_path)?;
+                    codec.send_message("Success")?;
+                } else {
+                    codec.send_message("Failure: Unauthorized file access")?;
+                }
+           } else {
+               codec.send_message("Failure: File does not exist in cwd")?;
+           }
         }
     }
 
