@@ -113,7 +113,11 @@ impl PgPersistance {
         let file = PgPersistance::find_by_filepath(connection, file_path).unwrap();
 
         let mapping = PgPersistance::find_by_acc_file(connection, acc.user_id, file.file_id).unwrap();
-        mapping.permissions.eq(permissions)
+        if permissions == "R" {
+            mapping.permissions.eq("R") || mapping.permissions.eq("RW")
+        } else {
+            mapping.permissions.eq(permissions)
+        }
     }
 
 }
