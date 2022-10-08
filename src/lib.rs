@@ -12,7 +12,7 @@ pub struct PgPersistance {}
 
 impl PgPersistance {
     pub fn get_connection() -> PgConnection {
-        let db_url = "postgres://postgres:Shubham2234@fileserverdb.ceqjhfvbhjd1.us-east-2.rds.amazonaws.com:5432/FILE_SERVER_DB";
+        let db_url = "postgres://postgres:*******@fileserverdb.ceqjhfvbhjd1.us-east-2.rds.amazonaws.com:5432/FILE_SERVER_DB";
         let db_connection: PgConnection =
             PgConnection::establish(db_url).expect(&format!("Error connecting to {}", db_url));
         return db_connection;
